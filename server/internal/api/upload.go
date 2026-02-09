@@ -68,7 +68,11 @@ func (h *UploadHandler) UploadImage(c *fiber.Ctx) error {
 	if c.Protocol() == "https" {
 		protocol = "https"
 	}
-	host := c.Hostname()
+	// Use Host header which includes the port
+	host := c.Get("Host")
+	if host == "" {
+		host = c.Hostname()
+	}
 	imageURL := fmt.Sprintf("%s://%s/uploads/%s", protocol, host, filename)
 
 	return c.JSON(fiber.Map{
@@ -89,7 +93,11 @@ func (h *UploadHandler) ListUploads(c *fiber.Ctx) error {
 	if c.Protocol() == "https" {
 		protocol = "https"
 	}
-	host := c.Hostname()
+	// Use Host header which includes the port
+	host := c.Get("Host")
+	if host == "" {
+		host = c.Hostname()
+	}
 
 	var uploads []fiber.Map
 	for _, file := range files {

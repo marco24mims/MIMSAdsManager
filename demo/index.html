@@ -283,11 +283,11 @@
     </div>
 
     <footer>
-        MIMS Ad Manager POC &copy; 2024 | <a href="http://10.50.10.65:3000" style="color: #3B82F6;">Dashboard</a>
+        MIMS Ad Manager POC &copy; 2024 | <a href="http://10.50.10.65:5000" style="color: #3B82F6;">Dashboard</a>
     </footer>
 
     <!-- MIMS Ad Tag -->
-    <script src="http://10.50.10.65:8080/static/tag.js"></script>
+    <script src="http://10.50.10.65:8000/static/tag.js"></script>
     <script>
         // Fallback to local tag if server not available
         if (typeof MIMSAds === 'undefined') {
@@ -315,7 +315,7 @@
 
             // Initialize SDK
             MIMSAds.init({
-                serverUrl: 'http://10.50.10.65:8080'
+                serverUrl: 'http://10.50.10.65:8000'
             });
 
             log('User ID: ' + MIMSAds.getUserId());

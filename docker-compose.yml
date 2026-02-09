@@ -4,7 +4,7 @@ services:
   server:
     build: ./server
     ports:
-      - "8080:8080"
+      - "8000:8080"
     environment:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/mimsads?sslmode=disable
       - PORT=8080
@@ -16,7 +16,7 @@ services:
   dashboard:
     build: ./dashboard
     ports:
-      - "3000:80"
+      - "5000:80"
     environment:
       - VITE_API_URL=http://localhost:8080
     depends_on:

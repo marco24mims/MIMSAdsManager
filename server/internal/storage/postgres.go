@@ -112,7 +112,7 @@ func (s *PostgresStore) DeleteCampaign(ctx context.Context, id int) error {
 // ListLineItems returns line items for a campaign
 func (s *PostgresStore) ListLineItems(ctx context.Context, campaignID int) ([]models.LineItem, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, campaign_id, name, priority, frequency_cap, frequency_cap_period, status, created_at, updated_at
+		SELECT id, campaign_id, name, priority, weight, frequency_cap, frequency_cap_period, status, created_at, updated_at
 		FROM line_items
 		WHERE campaign_id = $1
 		ORDER BY priority DESC, created_at DESC
@@ -125,7 +125,7 @@ func (s *PostgresStore) ListLineItems(ctx context.Context, campaignID int) ([]mo
 	var items []models.LineItem
 	for rows.Next() {
 		var li models.LineItem
-		if err := rows.Scan(&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt); err != nil {
+		if err := rows.Scan(&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, li)
@@ -137,9 +137,9 @@ func (s *PostgresStore) ListLineItems(ctx context.Context, campaignID int) ([]mo
 func (s *PostgresStore) GetLineItem(ctx context.Context, id int) (*models.LineItem, error) {
 	var li models.LineItem
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, campaign_id, name, priority, frequency_cap, frequency_cap_period, status, created_at, updated_at
+		SELECT id, campaign_id, name, priority, weight, frequency_cap, frequency_cap_period, status, created_at, updated_at
 		FROM line_items WHERE id = $1
-	`, id).Scan(&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt)
+	`, id).Scan(&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
@@ -166,11 +166,11 @@ func (s *PostgresStore) CreateLineItem(ctx context.Context, req *models.CreateLi
 
 	var li models.LineItem
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO line_items (campaign_id, name, priority, frequency_cap, frequency_cap_period, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-		RETURNING id, campaign_id, name, priority, frequency_cap, frequency_cap_period, status, created_at, updated_at
+		INSERT INTO line_items (campaign_id, name, priority, weight, frequency_cap, frequency_cap_period, status, created_at, updated_at)
+		VALUES ($1, $2, $3, 100, $4, $5, $6, NOW(), NOW())
+		RETURNING id, campaign_id, name, priority, weight, frequency_cap, frequency_cap_period, status, created_at, updated_at
 	`, req.CampaignID, req.Name, priority, req.FrequencyCap, period, status).Scan(
-		&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt)
+		&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -189,9 +189,9 @@ func (s *PostgresStore) UpdateLineItem(ctx context.Context, id int, req *models.
 		    status = COALESCE(NULLIF($6, ''), status),
 		    updated_at = NOW()
 		WHERE id = $1
-		RETURNING id, campaign_id, name, priority, frequency_cap, frequency_cap_period, status, created_at, updated_at
+		RETURNING id, campaign_id, name, priority, weight, frequency_cap, frequency_cap_period, status, created_at, updated_at
 	`, id, req.Name, req.Priority, req.FrequencyCap, req.FrequencyCapPeriod, req.Status).Scan(
-		&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt)
+		&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
@@ -380,7 +380,7 @@ func (s *PostgresStore) RecordEvent(ctx context.Context, event *models.Event) er
 func (s *PostgresStore) GetActiveLineItemsWithCreatives(ctx context.Context) ([]models.LineItem, error) {
 	// Get active line items
 	rows, err := s.pool.Query(ctx, `
-		SELECT li.id, li.campaign_id, li.name, li.priority, li.frequency_cap, li.frequency_cap_period, li.status, li.created_at, li.updated_at
+		SELECT li.id, li.campaign_id, li.name, li.priority, li.weight, li.frequency_cap, li.frequency_cap_period, li.status, li.created_at, li.updated_at
 		FROM line_items li
 		JOIN campaigns c ON li.campaign_id = c.id
 		WHERE li.status = 'active' AND c.status = 'active'
@@ -394,13 +394,13 @@ func (s *PostgresStore) GetActiveLineItemsWithCreatives(ctx context.Context) ([]
 	var items []models.LineItem
 	for rows.Next() {
 		var li models.LineItem
-		if err := rows.Scan(&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt); err != nil {
+		if err := rows.Scan(&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, li)
 	}
 
-	// Get targeting rules and creatives for each line item
+	// Get targeting rules, creatives, and ad unit IDs for each line item
 	for i := range items {
 		rules, err := s.GetTargetingRules(ctx, items[i].ID)
 		if err != nil {
@@ -413,6 +413,23 @@ func (s *PostgresStore) GetActiveLineItemsWithCreatives(ctx context.Context) ([]
 			return nil, err
 		}
 		items[i].Creatives = creatives
+
+		// Get ad unit IDs
+		adUnitRows, err := s.pool.Query(ctx, `
+			SELECT ad_unit_id FROM line_item_ad_units WHERE line_item_id = $1
+		`, items[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		for adUnitRows.Next() {
+			var adUnitID int
+			if err := adUnitRows.Scan(&adUnitID); err != nil {
+				adUnitRows.Close()
+				return nil, err
+			}
+			items[i].AdUnitIDs = append(items[i].AdUnitIDs, adUnitID)
+		}
+		adUnitRows.Close()
 	}
 
 	return items, nil

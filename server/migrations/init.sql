@@ -1,6 +1,18 @@
 -- MIMS Ad Manager - Database Schema
 -- POC Version
 
+-- Ad Units (inventory hierarchy like GAM)
+CREATE TABLE ad_units (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(100) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    sizes JSONB DEFAULT '[]',
+    status VARCHAR(20) DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Campaigns
 CREATE TABLE campaigns (
     id SERIAL PRIMARY KEY,
@@ -16,6 +28,7 @@ CREATE TABLE line_items (
     campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     priority INTEGER DEFAULT 5,
+    weight INTEGER DEFAULT 100,
     frequency_cap INTEGER DEFAULT 0,
     frequency_cap_period VARCHAR(20) DEFAULT 'day',
     status VARCHAR(20) DEFAULT 'active',
@@ -23,7 +36,15 @@ CREATE TABLE line_items (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Targeting Rules
+-- Line Item to Ad Unit targeting (many-to-many)
+CREATE TABLE line_item_ad_units (
+    id SERIAL PRIMARY KEY,
+    line_item_id INTEGER REFERENCES line_items(id) ON DELETE CASCADE,
+    ad_unit_id INTEGER REFERENCES ad_units(id) ON DELETE CASCADE,
+    UNIQUE(line_item_id, ad_unit_id)
+);
+
+-- Targeting Rules (key-value targeting)
 CREATE TABLE targeting_rules (
     id SERIAL PRIMARY KEY,
     line_item_id INTEGER REFERENCES line_items(id) ON DELETE CASCADE,
@@ -67,32 +88,50 @@ CREATE INDEX idx_events_line_item ON events(line_item_id, created_at);
 CREATE INDEX idx_events_impression_id ON events(impression_id);
 CREATE INDEX idx_events_country ON events(country, created_at);
 CREATE INDEX idx_events_section ON events(section, created_at);
+CREATE INDEX idx_events_ad_unit ON events(ad_unit, created_at);
 CREATE INDEX idx_line_items_campaign ON line_items(campaign_id);
 CREATE INDEX idx_line_items_status ON line_items(status);
 CREATE INDEX idx_creatives_line_item ON creatives(line_item_id);
 CREATE INDEX idx_targeting_rules_line_item ON targeting_rules(line_item_id);
+CREATE INDEX idx_ad_units_code ON ad_units(code);
 
--- Insert sample data for demo
+-- Insert sample Ad Units
+INSERT INTO ad_units (code, name, description, sizes) VALUES
+    ('leaderboard', 'Leaderboard Banner', 'Top of page banner', '[[728, 90]]'),
+    ('sidebar', 'Sidebar Rectangle', 'Sidebar ad unit', '[[300, 250]]'),
+    ('mobile_banner', 'Mobile Banner', 'Mobile leaderboard', '[[320, 50], [320, 100]]');
+
+-- Insert sample Campaigns
 INSERT INTO campaigns (name, status) VALUES
     ('Demo Campaign', 'active'),
     ('Test Campaign', 'active');
 
-INSERT INTO line_items (campaign_id, name, priority, frequency_cap, status) VALUES
-    (1, 'Homepage Banner', 10, 3, 'active'),
-    (1, 'News Section Banner', 5, 5, 'active'),
-    (2, 'Sidebar Ad', 3, 0, 'active');
+-- Insert sample Line Items with weights for rotation
+INSERT INTO line_items (campaign_id, name, priority, weight, frequency_cap, status) VALUES
+    (1, 'Homepage Banner', 10, 100, 3, 'active'),
+    (1, 'News Section Banner', 10, 100, 5, 'active'),
+    (2, 'Sports Section Ad', 5, 50, 0, 'active');
 
+-- Link line items to ad units
+INSERT INTO line_item_ad_units (line_item_id, ad_unit_id) VALUES
+    (1, 1), (1, 2),  -- Homepage Banner targets leaderboard and sidebar
+    (2, 1), (2, 2),  -- News Banner targets leaderboard and sidebar
+    (3, 1), (3, 2);  -- Sports Ad targets leaderboard and sidebar
+
+-- Insert Targeting Rules
 INSERT INTO targeting_rules (line_item_id, key, operator, values) VALUES
     (1, 'section', 'IN', '["home", "news"]'),
-    (1, 'country', 'IN', '["sg", "my", "ph"]'),
-    (2, 'section', 'EQ', '["news"]'),
-    (2, 'country', 'IN', '["sg"]'),
-    (3, 'section', 'IN', '["sports", "entertainment"]');
+    (1, 'country', 'IN', '["sg", "my", "ph", "id"]'),
+    (2, 'section', 'IN', '["news", "home"]'),
+    (2, 'country', 'IN', '["sg", "my", "ph", "id"]'),
+    (3, 'section', 'IN', '["sports", "entertainment"]'),
+    (3, 'country', 'IN', '["sg", "my", "ph", "id"]');
 
+-- Insert sample Creatives with reliable placeholder images
 INSERT INTO creatives (line_item_id, name, width, height, image_url, click_url) VALUES
-    (1, 'Banner 728x90', 728, 90, 'https://via.placeholder.com/728x90/4A90A4/FFFFFF?text=MIMS+Ad+728x90', 'https://example.com/landing1'),
-    (1, 'Banner 300x250', 300, 250, 'https://via.placeholder.com/300x250/4A90A4/FFFFFF?text=MIMS+Ad+300x250', 'https://example.com/landing1'),
-    (2, 'News Banner 728x90', 728, 90, 'https://via.placeholder.com/728x90/2ECC71/FFFFFF?text=News+Banner', 'https://example.com/landing2'),
-    (2, 'News Banner 300x250', 300, 250, 'https://via.placeholder.com/300x250/2ECC71/FFFFFF?text=News+Sidebar', 'https://example.com/landing2'),
-    (3, 'Sports Banner 728x90', 728, 90, 'https://via.placeholder.com/728x90/E74C3C/FFFFFF?text=Sports+Ad', 'https://example.com/landing3'),
-    (3, 'Sports Banner 300x250', 300, 250, 'https://via.placeholder.com/300x250/E74C3C/FFFFFF?text=Sports+Sidebar', 'https://example.com/landing3');
+    (1, 'Homepage Leaderboard', 728, 90, 'https://picsum.photos/728/90?random=1', 'https://example.com/landing1'),
+    (1, 'Homepage Rectangle', 300, 250, 'https://picsum.photos/300/250?random=2', 'https://example.com/landing1'),
+    (2, 'News Leaderboard', 728, 90, 'https://picsum.photos/728/90?random=3', 'https://example.com/landing2'),
+    (2, 'News Rectangle', 300, 250, 'https://picsum.photos/300/250?random=4', 'https://example.com/landing2'),
+    (3, 'Sports Leaderboard', 728, 90, 'https://picsum.photos/728/90?random=5', 'https://example.com/landing3'),
+    (3, 'Sports Rectangle', 300, 250, 'https://picsum.photos/300/250?random=6', 'https://example.com/landing3');

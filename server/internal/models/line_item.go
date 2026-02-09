@@ -8,6 +8,7 @@ type LineItem struct {
 	CampaignID         int              `json:"campaign_id"`
 	Name               string           `json:"name"`
 	Priority           int              `json:"priority"`
+	Weight             int              `json:"weight"`
 	FrequencyCap       int              `json:"frequency_cap"`
 	FrequencyCapPeriod string           `json:"frequency_cap_period"`
 	Status             string           `json:"status"`
@@ -15,6 +16,7 @@ type LineItem struct {
 	UpdatedAt          time.Time        `json:"updated_at"`
 	TargetingRules     []TargetingRule  `json:"targeting_rules,omitempty"`
 	Creatives          []Creative       `json:"creatives,omitempty"`
+	AdUnitIDs          []int            `json:"ad_unit_ids,omitempty"`
 }
 
 // TargetingRule represents a targeting rule for a line item

@@ -2,7 +2,9 @@ package api
 
 import (
 	"fmt"
+	"math/rand"
 	"sort"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
@@ -12,6 +14,10 @@ import (
 	"github.com/mims/ad-manager/internal/storage"
 	"github.com/mims/ad-manager/internal/targeting"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 // AdsHandler handles ad serving requests
 type AdsHandler struct {
@@ -66,39 +72,43 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 
 	// Process each slot
 	for _, slot := range req.Slots {
-		// Match line items based on targeting
+		// Match line items based on targeting and ad unit
 		matched := h.matcher.Match(req.Targeting, lineItems, slot.Width, slot.Height)
+
+		// Filter by ad unit if provided
+		if slot.AdUnit != "" {
+			matched = filterByAdUnit(matched, slot.AdUnit)
+		}
 
 		// Sort by priority (highest first)
 		sort.Slice(matched, func(i, j int) bool {
 			return matched[i].Priority > matched[j].Priority
 		})
 
-		// Find first line item that passes frequency cap
-		var selectedLineItem *models.LineItem
-		var selectedCreative *models.Creative
-
+		// Filter by frequency cap
+		var eligible []models.LineItem
 		for _, li := range matched {
-			// Check frequency cap
-			if !h.freqCap.Check(li.ID, userID, li.FrequencyCap) {
-				continue
+			if h.freqCap.Check(li.ID, userID, li.FrequencyCap) {
+				eligible = append(eligible, li)
 			}
-
-			// Select creative
-			creative := h.matcher.SelectCreative(li, slot.Width, slot.Height)
-			if creative == nil {
-				continue
-			}
-
-			selectedLineItem = &li
-			selectedCreative = creative
-			break
 		}
 
-		if selectedLineItem == nil || selectedCreative == nil {
-			// No matching ad for this slot
+		if len(eligible) == 0 {
 			continue
 		}
+
+		// Select line item using weighted random among same priority
+		selectedLineItem := selectWeightedRandom(eligible)
+		if selectedLineItem == nil {
+			continue
+		}
+
+		// Select creative
+		selectedCreative := h.matcher.SelectCreative(*selectedLineItem, slot.Width, slot.Height)
+		if selectedCreative == nil {
+			continue
+		}
+
 
 		// Generate impression ID
 		impressionID := uuid.New().String()
@@ -134,4 +144,62 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(models.AdResponse{Ads: results})
+}
+
+// selectWeightedRandom selects a line item using weighted random selection
+// among items with the highest priority
+func selectWeightedRandom(lineItems []models.LineItem) *models.LineItem {
+	if len(lineItems) == 0 {
+		return nil
+	}
+
+	// Get the highest priority
+	highestPriority := lineItems[0].Priority
+
+	// Filter to only highest priority items
+	var samePriority []models.LineItem
+	for _, li := range lineItems {
+		if li.Priority == highestPriority {
+			samePriority = append(samePriority, li)
+		} else {
+			break // Already sorted by priority desc
+		}
+	}
+
+	if len(samePriority) == 1 {
+		return &samePriority[0]
+	}
+
+	// Calculate total weight
+	totalWeight := 0
+	for _, li := range samePriority {
+		weight := li.Weight
+		if weight <= 0 {
+			weight = 100 // Default weight
+		}
+		totalWeight += weight
+	}
+
+	// Random selection based on weight
+	r := rand.Intn(totalWeight)
+	cumulative := 0
+	for i := range samePriority {
+		weight := samePriority[i].Weight
+		if weight <= 0 {
+			weight = 100
+		}
+		cumulative += weight
+		if r < cumulative {
+			return &samePriority[i]
+		}
+	}
+
+	return &samePriority[0]
+}
+
+// filterByAdUnit filters line items by ad unit code
+func filterByAdUnit(lineItems []models.LineItem, adUnitCode string) []models.LineItem {
+	// For now, just return all items - ad unit filtering requires looking up ad unit ID by code
+	// This is a simplified version - full implementation would query ad_units table
+	return lineItems
 }

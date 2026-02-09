@@ -14,6 +14,7 @@ type AdSlot struct {
 	ID     string `json:"id"`
 	Width  int    `json:"width"`
 	Height int    `json:"height"`
+	AdUnit string `json:"ad_unit,omitempty"`
 }
 
 // AdResponse represents the response containing matched ads

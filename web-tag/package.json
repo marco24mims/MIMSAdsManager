@@ -4,9 +4,9 @@
   "description": "MIMS Ad Manager JavaScript Tag",
   "main": "dist/tag.js",
   "scripts": {
-    "build": "esbuild src/tag.ts --bundle --minify --outfile=dist/tag.js --format=iife --global-name=MIMSAds",
-    "build:dev": "esbuild src/tag.ts --bundle --outfile=dist/tag.js --format=iife --global-name=MIMSAds --sourcemap",
-    "watch": "esbuild src/tag.ts --bundle --outfile=dist/tag.js --format=iife --global-name=MIMSAds --sourcemap --watch"
+    "build": "esbuild src/tag.ts --bundle --minify --outfile=dist/tag.js --format=iife",
+    "build:dev": "esbuild src/tag.ts --bundle --outfile=dist/tag.js --format=iife --sourcemap",
+    "watch": "esbuild src/tag.ts --bundle --outfile=dist/tag.js --format=iife --sourcemap --watch"
   },
   "devDependencies": {
     "esbuild": "^0.19.11",

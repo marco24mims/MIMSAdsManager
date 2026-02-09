@@ -343,12 +343,5 @@ const MIMSAds = (function() {
   };
 })();
 
-// Export for module systems
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = MIMSAds;
-}
-
 // Make available globally
 (window as any).MIMSAds = MIMSAds;
-
-export default MIMSAds;

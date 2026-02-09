@@ -8,6 +8,7 @@ services:
     environment:
       - DATABASE_URL=postgres://postgres:postgres@db:5432/mimsads?sslmode=disable
       - PORT=8080
+      - SERVER_URL=http://10.50.10.65:8000
     volumes:
       - uploads:/app/uploads
     depends_on:

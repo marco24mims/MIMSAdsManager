@@ -63,8 +63,21 @@ func (h *UploadHandler) UploadImage(c *fiber.Ctx) error {
 		return NewInternalError("Failed to save file")
 	}
 
-	// Return relative URL - works with nginx proxy
-	imageURL := fmt.Sprintf("/uploads/%s", filename)
+	// Build full URL using the ad server's address
+	// Get server URL from environment or use request host
+	serverURL := os.Getenv("SERVER_URL")
+	if serverURL == "" {
+		protocol := "http"
+		if c.Protocol() == "https" {
+			protocol = "https"
+		}
+		host := c.Get("Host")
+		if host == "" {
+			host = c.Hostname() + ":8080"
+		}
+		serverURL = fmt.Sprintf("%s://%s", protocol, host)
+	}
+	imageURL := fmt.Sprintf("%s/uploads/%s", serverURL, filename)
 
 	return c.JSON(fiber.Map{
 		"success":   true,
@@ -80,13 +93,27 @@ func (h *UploadHandler) ListUploads(c *fiber.Ctx) error {
 		return NewInternalError("Failed to list uploads")
 	}
 
+	// Get server URL
+	serverURL := os.Getenv("SERVER_URL")
+	if serverURL == "" {
+		protocol := "http"
+		if c.Protocol() == "https" {
+			protocol = "https"
+		}
+		host := c.Get("Host")
+		if host == "" {
+			host = c.Hostname() + ":8080"
+		}
+		serverURL = fmt.Sprintf("%s://%s", protocol, host)
+	}
+
 	var uploads []fiber.Map
 	for _, file := range files {
 		if !file.IsDir() {
 			info, _ := file.Info()
 			uploads = append(uploads, fiber.Map{
 				"filename":   file.Name(),
-				"image_url":  fmt.Sprintf("/uploads/%s", file.Name()),
+				"image_url":  fmt.Sprintf("%s/uploads/%s", serverURL, file.Name()),
 				"size":       info.Size(),
 				"created_at": info.ModTime(),
 			})

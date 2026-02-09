@@ -100,6 +100,7 @@ func main() {
 	trackingHandler := api.NewTrackingHandler(store)
 	adminHandler := api.NewAdminHandler(store, cache)
 	reportsHandler := api.NewReportsHandler(store)
+	uploadHandler := api.NewUploadHandler("./uploads")
 
 	// Health check
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -108,6 +109,9 @@ func main() {
 
 	// Serve static files (JavaScript tag)
 	app.Static("/static", "./static")
+
+	// Serve uploaded files
+	app.Static("/uploads", "./uploads")
 
 	// Ad serving routes
 	v1 := app.Group("/v1")
@@ -148,6 +152,11 @@ func main() {
 	apiGroup.Get("/reports/summary", reportsHandler.GetSummary)
 	apiGroup.Get("/reports/campaigns/:id", reportsHandler.GetCampaignReport)
 	apiGroup.Get("/reports/daily", reportsHandler.GetDailyReport)
+
+	// Uploads
+	apiGroup.Post("/uploads", uploadHandler.UploadImage)
+	apiGroup.Get("/uploads", uploadHandler.ListUploads)
+	apiGroup.Delete("/uploads/:filename", uploadHandler.DeleteUpload)
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)

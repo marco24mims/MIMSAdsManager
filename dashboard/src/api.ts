@@ -214,4 +214,28 @@ export async function getCampaignReport(
   return fetchAPI(`/api/reports/campaigns/${campaignId}?${params}`);
 }
 
+// Uploads
+interface UploadResponse {
+  success: boolean;
+  filename: string;
+  image_url: string;
+}
+
+export async function uploadImage(file: File): Promise<UploadResponse> {
+  const formData = new FormData();
+  formData.append('image', file);
+
+  const response = await fetch(`${API_URL}/api/uploads`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+    throw new Error(error.error || 'Upload failed');
+  }
+
+  return response.json();
+}
+
 export type { Campaign, LineItem, TargetingRule, Creative, ReportSummary, DailyStats };

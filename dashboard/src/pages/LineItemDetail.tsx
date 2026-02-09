@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   getLineItem,
@@ -8,6 +8,7 @@ import {
   getCreatives,
   createCreative,
   deleteCreative,
+  uploadImage,
   type LineItem,
   type TargetingRule,
   type Creative,
@@ -27,6 +28,10 @@ export default function LineItemDetail() {
 
   // Creative modal
   const [showCreativeModal, setShowCreativeModal] = useState(false);
+  const [imageSource, setImageSource] = useState<'url' | 'upload'>('url');
+  const [uploading, setUploading] = useState(false);
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [newCreative, setNewCreative] = useState({
     name: '',
     width: 728,
@@ -112,6 +117,51 @@ export default function LineItemDetail() {
     setEditingRules(updated);
   }
 
+  function openCreativeModal() {
+    setNewCreative({ name: '', width: 728, height: 90, image_url: '', click_url: '' });
+    setImageSource('url');
+    setUploadPreview(null);
+    setShowCreativeModal(true);
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setError('Invalid file type. Allowed: jpg, png, gif, webp');
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('File too large. Maximum size is 5MB');
+      return;
+    }
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setUploadPreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Upload file
+    try {
+      setUploading(true);
+      setError(null);
+      const result = await uploadImage(file);
+      setNewCreative({ ...newCreative, image_url: result.image_url });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload image');
+      setUploadPreview(null);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handleCreateCreative() {
     if (!newCreative.name.trim() || !newCreative.image_url.trim() || !newCreative.click_url.trim()) return;
 
@@ -121,6 +171,7 @@ export default function LineItemDetail() {
         ...newCreative,
       });
       setNewCreative({ name: '', width: 728, height: 90, image_url: '', click_url: '' });
+      setUploadPreview(null);
       setShowCreativeModal(false);
       loadData();
     } catch (err) {
@@ -203,6 +254,7 @@ export default function LineItemDetail() {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
           {error}
+          <button onClick={() => setError(null)} className="float-right font-bold">&times;</button>
         </div>
       )}
 
@@ -236,7 +288,7 @@ export default function LineItemDetail() {
       <div className="sm:flex sm:items-center sm:justify-between mb-4">
         <h3 className="text-lg font-medium text-gray-900">Creatives</h3>
         <button
-          onClick={() => setShowCreativeModal(true)}
+          onClick={openCreativeModal}
           className="mt-3 sm:mt-0 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
         >
           Add Creative
@@ -344,7 +396,7 @@ export default function LineItemDetail() {
       {/* Creative Modal */}
       {showCreativeModal && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
             <h3 className="text-lg font-medium mb-4">Add Creative</h3>
             <div className="space-y-4">
               <div>
@@ -377,16 +429,99 @@ export default function LineItemDetail() {
                   />
                 </div>
               </div>
+
+              {/* Image Source Toggle */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-                <input
-                  type="text"
-                  value={newCreative.image_url}
-                  onChange={(e) => setNewCreative({ ...newCreative, image_url: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Image Source</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="imageSource"
+                      value="url"
+                      checked={imageSource === 'url'}
+                      onChange={() => setImageSource('url')}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">URL (Hosted Image)</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="imageSource"
+                      value="upload"
+                      checked={imageSource === 'upload'}
+                      onChange={() => setImageSource('upload')}
+                      className="mr-2"
+                    />
+                    <span className="text-sm">Upload Image</span>
+                  </label>
+                </div>
               </div>
+
+              {/* URL Input */}
+              {imageSource === 'url' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
+                  <input
+                    type="text"
+                    value={newCreative.image_url}
+                    onChange={(e) => setNewCreative({ ...newCreative, image_url: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  />
+                  {newCreative.image_url && (
+                    <div className="mt-2">
+                      <img
+                        src={newCreative.image_url}
+                        alt="Preview"
+                        className="max-w-full h-auto max-h-32 border border-gray-200 rounded"
+                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Upload Input */}
+              {imageSource === 'upload' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Upload Image</label>
+                  <div
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploading ? (
+                      <div className="text-gray-500">Uploading...</div>
+                    ) : uploadPreview ? (
+                      <div>
+                        <img
+                          src={uploadPreview}
+                          alt="Preview"
+                          className="max-w-full h-auto max-h-32 mx-auto border border-gray-200 rounded"
+                        />
+                        <p className="mt-2 text-sm text-green-600">Image uploaded successfully!</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                          <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <p className="mt-2 text-sm text-gray-600">Click to upload an image</p>
+                        <p className="mt-1 text-xs text-gray-500">PNG, JPG, GIF, WebP up to 5MB</p>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Click URL</label>
                 <input
@@ -400,14 +535,17 @@ export default function LineItemDetail() {
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button
-                onClick={() => setShowCreativeModal(false)}
+                onClick={() => {
+                  setShowCreativeModal(false);
+                  setUploadPreview(null);
+                }}
                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border border-gray-300 rounded-md"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateCreative}
-                disabled={!newCreative.name.trim() || !newCreative.image_url.trim() || !newCreative.click_url.trim()}
+                disabled={!newCreative.name.trim() || !newCreative.image_url.trim() || !newCreative.click_url.trim() || uploading}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
               >
                 Create

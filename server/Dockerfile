@@ -35,6 +35,9 @@ COPY --from=builder /app/server .
 # Copy static files
 COPY --from=builder /app/static ./static
 
+# Create uploads directory
+RUN mkdir -p ./uploads
+
 # Expose port
 EXPOSE 8080
 

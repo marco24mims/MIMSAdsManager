@@ -1,12 +1,22 @@
 -- MIMS Ad Manager - Database Schema
 -- POC Version
 
+-- Targeting Keys (for auto-suggest)
+CREATE TABLE targeting_keys (
+    id SERIAL PRIMARY KEY,
+    key VARCHAR(100) NOT NULL UNIQUE,
+    values JSONB DEFAULT '[]',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Ad Units (inventory hierarchy like GAM)
 CREATE TABLE ad_units (
     id SERIAL PRIMARY KEY,
     code VARCHAR(100) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
+    platform VARCHAR(20) DEFAULT 'web',
     sizes JSONB DEFAULT '[]',
     status VARCHAR(20) DEFAULT 'active',
     created_at TIMESTAMP DEFAULT NOW(),
@@ -95,13 +105,22 @@ CREATE INDEX idx_creatives_line_item ON creatives(line_item_id);
 CREATE INDEX idx_targeting_rules_line_item ON targeting_rules(line_item_id);
 CREATE INDEX idx_ad_units_code ON ad_units(code);
 
+-- Insert sample Targeting Keys
+INSERT INTO targeting_keys (key, values) VALUES
+    ('country', '["sg", "my", "ph", "id", "th", "vn"]'),
+    ('section', '["home", "news", "sports", "entertainment", "lifestyle", "business"]'),
+    ('device', '["desktop", "mobile", "tablet"]'),
+    ('browser', '["chrome", "safari", "firefox", "edge"]'),
+    ('os', '["windows", "macos", "ios", "android", "linux"]');
+
 -- Insert sample Ad Units (codes match demo page options)
-INSERT INTO ad_units (code, name, description, sizes) VALUES
-    ('homepage_leaderboard', 'Homepage Leaderboard', 'Leaderboard banner on homepage', '[[728, 90]]'),
-    ('article_leaderboard', 'Article Leaderboard', 'Leaderboard banner on article pages', '[[728, 90]]'),
-    ('homepage_sidebar', 'Homepage Sidebar', 'Sidebar rectangle on homepage', '[[300, 250]]'),
-    ('article_sidebar', 'Article Sidebar', 'Sidebar rectangle on article pages', '[[300, 250]]'),
-    ('mobile_banner', 'Mobile Banner', 'Mobile leaderboard', '[[320, 50], [320, 100]]');
+INSERT INTO ad_units (code, name, description, platform, sizes) VALUES
+    ('homepage_leaderboard', 'Homepage Leaderboard', 'Leaderboard banner on homepage', 'web', '[[728, 90]]'),
+    ('article_leaderboard', 'Article Leaderboard', 'Leaderboard banner on article pages', 'web', '[[728, 90]]'),
+    ('homepage_sidebar', 'Homepage Sidebar', 'Sidebar rectangle on homepage', 'web', '[[300, 250]]'),
+    ('article_sidebar', 'Article Sidebar', 'Sidebar rectangle on article pages', 'web', '[[300, 250]]'),
+    ('mobile_banner', 'Mobile Banner', 'Mobile leaderboard banner', 'mobile', '[[320, 50], [320, 100]]'),
+    ('mobile_interstitial', 'Mobile Interstitial', 'Full screen mobile ad', 'mobile', '[[320, 480], [300, 250]]');
 
 -- Insert sample Campaigns
 INSERT INTO campaigns (name, status) VALUES

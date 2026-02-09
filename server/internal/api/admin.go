@@ -269,6 +269,11 @@ func (h *AdminHandler) SetTargetingRules(c *fiber.Ctx) error {
 		return NewInternalError("Failed to set targeting rules")
 	}
 
+	// Auto-save key-values to targeting_keys table for future auto-suggest
+	for _, rule := range req.Rules {
+		h.store.AddTargetingKeyValues(c.Context(), rule.Key, rule.Values)
+	}
+
 	// Refresh cache
 	h.cache.Refresh(c.Context(), h.store)
 
@@ -523,4 +528,58 @@ func (h *AdminHandler) SetLineItemAdUnits(c *fiber.Ctx) error {
 	h.cache.Refresh(c.Context(), h.store)
 
 	return c.JSON(fiber.Map{"ad_unit_ids": req.AdUnitIDs})
+}
+
+// Targeting Keys handlers
+
+// ListTargetingKeys returns all targeting keys
+func (h *AdminHandler) ListTargetingKeys(c *fiber.Ctx) error {
+	keys, err := h.store.ListTargetingKeys(c.Context())
+	if err != nil {
+		return NewInternalError("Failed to list targeting keys")
+	}
+	if keys == nil {
+		keys = []models.TargetingKey{}
+	}
+	return c.JSON(keys)
+}
+
+// GetTargetingKeyValues returns values for a specific key
+func (h *AdminHandler) GetTargetingKeyValues(c *fiber.Ctx) error {
+	key := c.Params("key")
+	if key == "" {
+		return NewBadRequest("Key is required")
+	}
+
+	targetingKey, err := h.store.GetTargetingKey(c.Context(), key)
+	if err != nil {
+		return NewInternalError("Failed to get targeting key")
+	}
+	if targetingKey == nil {
+		return c.JSON(fiber.Map{"key": key, "values": []string{}})
+	}
+
+	return c.JSON(targetingKey)
+}
+
+// AddTargetingKeyValues adds values to a targeting key
+func (h *AdminHandler) AddTargetingKeyValues(c *fiber.Ctx) error {
+	key := c.Params("key")
+	if key == "" {
+		return NewBadRequest("Key is required")
+	}
+
+	var req struct {
+		Values []string `json:"values"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return NewBadRequest("Invalid request body")
+	}
+
+	targetingKey, err := h.store.UpsertTargetingKey(c.Context(), key, req.Values)
+	if err != nil {
+		return NewInternalError("Failed to update targeting key")
+	}
+
+	return c.JSON(targetingKey)
 }

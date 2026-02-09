@@ -159,6 +159,11 @@ func main() {
 	apiGroup.Get("/line-items/:id/ad-units", adminHandler.GetLineItemAdUnits)
 	apiGroup.Post("/line-items/:id/ad-units", adminHandler.SetLineItemAdUnits)
 
+	// Targeting Keys (for auto-suggest)
+	apiGroup.Get("/targeting-keys", adminHandler.ListTargetingKeys)
+	apiGroup.Get("/targeting-keys/:key", adminHandler.GetTargetingKeyValues)
+	apiGroup.Post("/targeting-keys/:key", adminHandler.AddTargetingKeyValues)
+
 	// Reports
 	apiGroup.Get("/reports/summary", reportsHandler.GetSummary)
 	apiGroup.Get("/reports/campaigns/:id", reportsHandler.GetCampaignReport)

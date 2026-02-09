@@ -7,15 +7,18 @@ import {
   setTargetingRules,
   getCreatives,
   createCreative,
+  updateCreative,
   deleteCreative,
   uploadImage,
   getAdUnits,
   getLineItemAdUnits,
   setLineItemAdUnits,
+  getTargetingKeys,
   type LineItem,
   type TargetingRule,
   type Creative,
   type AdUnit,
+  type TargetingKey,
 } from '../api';
 
 export default function LineItemDetail() {
@@ -43,6 +46,7 @@ export default function LineItemDetail() {
 
   // Creative modal
   const [showCreativeModal, setShowCreativeModal] = useState(false);
+  const [editingCreative, setEditingCreative] = useState<Creative | null>(null);
   const [imageSource, setImageSource] = useState<'url' | 'upload'>('url');
   const [uploading, setUploading] = useState(false);
   const [uploadPreview, setUploadPreview] = useState<string | null>(null);
@@ -55,6 +59,9 @@ export default function LineItemDetail() {
     click_url: '',
   });
 
+  // Targeting keys for auto-suggest
+  const [targetingKeys, setTargetingKeys] = useState<TargetingKey[]>([]);
+
   useEffect(() => {
     if (id) {
       loadData();
@@ -64,18 +71,20 @@ export default function LineItemDetail() {
   async function loadData() {
     try {
       setLoading(true);
-      const [lineItemData, rulesData, creativesData, adUnitsData, lineItemAdUnits] = await Promise.all([
+      const [lineItemData, rulesData, creativesData, adUnitsData, lineItemAdUnits, targetingKeysData] = await Promise.all([
         getLineItem(Number(id)),
         getTargetingRules(Number(id)),
         getCreatives(Number(id)),
         getAdUnits(),
         getLineItemAdUnits(Number(id)),
+        getTargetingKeys(),
       ]);
       setLineItem(lineItemData);
       setTargetingRulesState(rulesData);
       setCreatives(creativesData);
       setAdUnits(adUnitsData || []);
       setSelectedAdUnitIds(lineItemAdUnits?.ad_unit_ids || []);
+      setTargetingKeys(targetingKeysData || []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load line item');
@@ -176,8 +185,20 @@ export default function LineItemDetail() {
     setEditingRules(updated);
   }
 
-  function openCreativeModal() {
-    setNewCreative({ name: '', width: 728, height: 90, image_url: '', click_url: '' });
+  function openCreativeModal(creative?: Creative) {
+    if (creative) {
+      setEditingCreative(creative);
+      setNewCreative({
+        name: creative.name,
+        width: creative.width,
+        height: creative.height,
+        image_url: creative.image_url,
+        click_url: creative.click_url,
+      });
+    } else {
+      setEditingCreative(null);
+      setNewCreative({ name: '', width: 728, height: 90, image_url: '', click_url: '' });
+    }
     setImageSource('url');
     setUploadPreview(null);
     setShowCreativeModal(true);
@@ -221,20 +242,31 @@ export default function LineItemDetail() {
     }
   }
 
-  async function handleCreateCreative() {
+  async function handleSaveCreative() {
     if (!newCreative.name.trim() || !newCreative.image_url.trim() || !newCreative.click_url.trim()) return;
 
     try {
-      await createCreative({
-        line_item_id: Number(id),
-        ...newCreative,
-      });
+      if (editingCreative) {
+        await updateCreative(editingCreative.id, {
+          name: newCreative.name,
+          width: newCreative.width,
+          height: newCreative.height,
+          image_url: newCreative.image_url,
+          click_url: newCreative.click_url,
+        });
+      } else {
+        await createCreative({
+          line_item_id: Number(id),
+          ...newCreative,
+        });
+      }
       setNewCreative({ name: '', width: 728, height: 90, image_url: '', click_url: '' });
+      setEditingCreative(null);
       setUploadPreview(null);
       setShowCreativeModal(false);
       loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create creative');
+      setError(err instanceof Error ? err.message : 'Failed to save creative');
     }
   }
 
@@ -426,12 +458,20 @@ export default function LineItemDetail() {
                       Click URL: {creative.click_url}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDeleteCreative(creative.id)}
-                    className="text-red-600 hover:text-red-800 text-sm"
-                  >
-                    Delete
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openCreativeModal(creative)}
+                      className="text-blue-600 hover:text-blue-800 text-sm"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCreative(creative.id)}
+                      className="text-red-600 hover:text-red-800 text-sm"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </li>
             ))}
@@ -444,40 +484,78 @@ export default function LineItemDetail() {
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
             <h3 className="text-lg font-medium mb-4">Edit Targeting Rules</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Add key-value targeting rules. Known keys and values will be suggested as you type.
+            </p>
             <div className="space-y-4">
-              {editingRules.map((rule, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={rule.key}
-                    onChange={(e) => updateRule(index, 'key', e.target.value)}
-                    placeholder="Key (e.g., country)"
-                    className="flex-1 border border-gray-300 rounded-md px-3 py-2"
-                  />
-                  <select
-                    value={rule.operator}
-                    onChange={(e) => updateRule(index, 'operator', e.target.value)}
-                    className="border border-gray-300 rounded-md px-3 py-2"
-                  >
-                    <option value="IN">IN</option>
-                    <option value="EQ">EQ</option>
-                    <option value="NOT_IN">NOT_IN</option>
-                  </select>
-                  <input
-                    type="text"
-                    value={rule.values}
-                    onChange={(e) => updateRule(index, 'values', e.target.value)}
-                    placeholder="Values (comma-separated)"
-                    className="flex-1 border border-gray-300 rounded-md px-3 py-2"
-                  />
-                  <button
-                    onClick={() => removeRule(index)}
-                    className="text-red-600 hover:text-red-800 px-2"
-                  >
-                    Remove
-                  </button>
+              {editingRules.map((rule, index) => {
+                const keyData = targetingKeys.find(k => k.key === rule.key);
+                const suggestedValues = keyData?.values || [];
+                return (
+                <div key={index} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        list={`keys-${index}`}
+                        value={rule.key}
+                        onChange={(e) => updateRule(index, 'key', e.target.value)}
+                        placeholder="Key (e.g., country)"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      />
+                      <datalist id={`keys-${index}`}>
+                        {targetingKeys.map(k => (
+                          <option key={k.key} value={k.key} />
+                        ))}
+                      </datalist>
+                    </div>
+                    <select
+                      value={rule.operator}
+                      onChange={(e) => updateRule(index, 'operator', e.target.value)}
+                      className="border border-gray-300 rounded-md px-3 py-2"
+                    >
+                      <option value="IN">IN</option>
+                      <option value="EQ">EQ</option>
+                      <option value="NOT_IN">NOT_IN</option>
+                    </select>
+                    <div className="flex-1">
+                      <input
+                        type="text"
+                        value={rule.values}
+                        onChange={(e) => updateRule(index, 'values', e.target.value)}
+                        placeholder="Values (comma-separated)"
+                        className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      />
+                    </div>
+                    <button
+                      onClick={() => removeRule(index)}
+                      className="text-red-600 hover:text-red-800 px-2"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  {suggestedValues.length > 0 && (
+                    <div className="flex flex-wrap gap-1 ml-0 pl-0">
+                      <span className="text-xs text-gray-500">Suggested:</span>
+                      {suggestedValues.slice(0, 8).map(v => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => {
+                            const current = rule.values ? rule.values.split(',').map(s => s.trim()).filter(Boolean) : [];
+                            if (!current.includes(v)) {
+                              updateRule(index, 'values', [...current, v].join(', '));
+                            }
+                          }}
+                          className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded hover:bg-blue-100"
+                        >
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ))}
+              )})}
             </div>
             <button onClick={addRule} className="mt-4 text-blue-600 hover:text-blue-800 text-sm">
               + Add Rule
@@ -504,7 +582,7 @@ export default function LineItemDetail() {
       {showCreativeModal && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg">
-            <h3 className="text-lg font-medium mb-4">Add Creative</h3>
+            <h3 className="text-lg font-medium mb-4">{editingCreative ? 'Edit Creative' : 'Add Creative'}</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
@@ -651,11 +729,11 @@ export default function LineItemDetail() {
                 Cancel
               </button>
               <button
-                onClick={handleCreateCreative}
+                onClick={handleSaveCreative}
                 disabled={!newCreative.name.trim() || !newCreative.image_url.trim() || !newCreative.click_url.trim() || uploading}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
               >
-                Create
+                {editingCreative ? 'Save' : 'Create'}
               </button>
             </div>
           </div>

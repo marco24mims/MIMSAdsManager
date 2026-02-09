@@ -20,6 +20,10 @@ export default function CampaignDetail() {
   const [newLineItem, setNewLineItem] = useState({ name: '', priority: 5, frequency_cap: 0 });
   const [creating, setCreating] = useState(false);
 
+  // Edit campaign modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingName, setEditingName] = useState('');
+
   useEffect(() => {
     if (id) {
       loadData();
@@ -49,6 +53,23 @@ export default function CampaignDetail() {
       const newStatus = campaign.status === 'active' ? 'paused' : 'active';
       const updated = await updateCampaign(campaign.id, { status: newStatus });
       setCampaign(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update campaign');
+    }
+  }
+
+  function openEditModal() {
+    if (!campaign) return;
+    setEditingName(campaign.name);
+    setShowEditModal(true);
+  }
+
+  async function handleSaveCampaign() {
+    if (!campaign || !editingName.trim()) return;
+    try {
+      const updated = await updateCampaign(campaign.id, { name: editingName.trim() });
+      setCampaign(updated);
+      setShowEditModal(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update campaign');
     }
@@ -133,16 +154,24 @@ export default function CampaignDetail() {
               </span>
             </div>
           </div>
-          <button
-            onClick={handleToggleStatus}
-            className={`px-4 py-2 rounded-md text-sm font-medium ${
-              campaign.status === 'active'
-                ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                : 'bg-green-100 text-green-800 hover:bg-green-200'
-            }`}
-          >
-            {campaign.status === 'active' ? 'Pause' : 'Activate'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={openEditModal}
+              className="px-4 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+            >
+              Edit
+            </button>
+            <button
+              onClick={handleToggleStatus}
+              className={`px-4 py-2 rounded-md text-sm font-medium ${
+                campaign.status === 'active'
+                  ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                  : 'bg-green-100 text-green-800 hover:bg-green-200'
+              }`}
+            >
+              {campaign.status === 'active' ? 'Pause' : 'Activate'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -262,6 +291,43 @@ export default function CampaignDetail() {
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
               >
                 {creating ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Campaign Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium mb-4">Edit Campaign</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  placeholder="Campaign name"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border border-gray-300 rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveCampaign}
+                disabled={!editingName.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
+              >
+                Save
               </button>
             </div>
           </div>

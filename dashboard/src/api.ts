@@ -29,8 +29,17 @@ interface AdUnit {
   code: string;
   name: string;
   description: string;
+  platform: string;
   sizes: number[][];
   status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface TargetingKey {
+  id: number;
+  key: string;
+  values: string[];
   created_at: string;
   updated_at: string;
 }
@@ -305,6 +314,7 @@ export async function createAdUnit(data: {
   code: string;
   name: string;
   description?: string;
+  platform?: string;
   sizes?: number[][];
 }): Promise<AdUnit> {
   return fetchAPI<AdUnit>('/api/ad-units', {
@@ -336,4 +346,20 @@ export async function setLineItemAdUnits(lineItemId: number, adUnitIds: number[]
   });
 }
 
-export type { Campaign, LineItem, TargetingRule, Creative, ReportSummary, DailyStats, AdUnit };
+// Targeting Keys (for auto-suggest)
+export async function getTargetingKeys(): Promise<TargetingKey[]> {
+  return fetchAPI<TargetingKey[]>('/api/targeting-keys');
+}
+
+export async function getTargetingKeyValues(key: string): Promise<TargetingKey> {
+  return fetchAPI<TargetingKey>(`/api/targeting-keys/${key}`);
+}
+
+export async function addTargetingKeyValues(key: string, values: string[]): Promise<TargetingKey> {
+  return fetchAPI<TargetingKey>(`/api/targeting-keys/${key}`, {
+    method: 'POST',
+    body: JSON.stringify({ values }),
+  });
+}
+
+export type { Campaign, LineItem, TargetingRule, Creative, ReportSummary, DailyStats, AdUnit, TargetingKey };

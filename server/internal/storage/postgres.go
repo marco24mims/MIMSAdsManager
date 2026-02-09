@@ -112,7 +112,7 @@ func (s *PostgresStore) DeleteCampaign(ctx context.Context, id int) error {
 // ListAdUnits returns all ad units
 func (s *PostgresStore) ListAdUnits(ctx context.Context) ([]models.AdUnit, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, code, name, description, sizes, status, created_at, updated_at
+		SELECT id, code, name, description, platform, sizes, status, created_at, updated_at
 		FROM ad_units
 		ORDER BY name
 	`)
@@ -125,7 +125,7 @@ func (s *PostgresStore) ListAdUnits(ctx context.Context) ([]models.AdUnit, error
 	for rows.Next() {
 		var u models.AdUnit
 		var sizesJSON []byte
-		if err := rows.Scan(&u.ID, &u.Code, &u.Name, &u.Description, &sizesJSON, &u.Status, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Code, &u.Name, &u.Description, &u.Platform, &sizesJSON, &u.Status, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, err
 		}
 		json.Unmarshal(sizesJSON, &u.Sizes)
@@ -139,9 +139,9 @@ func (s *PostgresStore) GetAdUnit(ctx context.Context, id int) (*models.AdUnit, 
 	var u models.AdUnit
 	var sizesJSON []byte
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, code, name, description, sizes, status, created_at, updated_at
+		SELECT id, code, name, description, platform, sizes, status, created_at, updated_at
 		FROM ad_units WHERE id = $1
-	`, id).Scan(&u.ID, &u.Code, &u.Name, &u.Description, &sizesJSON, &u.Status, &u.CreatedAt, &u.UpdatedAt)
+	`, id).Scan(&u.ID, &u.Code, &u.Name, &u.Description, &u.Platform, &sizesJSON, &u.Status, &u.CreatedAt, &u.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
@@ -157,9 +157,9 @@ func (s *PostgresStore) GetAdUnitByCode(ctx context.Context, code string) (*mode
 	var u models.AdUnit
 	var sizesJSON []byte
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, code, name, description, sizes, status, created_at, updated_at
+		SELECT id, code, name, description, platform, sizes, status, created_at, updated_at
 		FROM ad_units WHERE code = $1
-	`, code).Scan(&u.ID, &u.Code, &u.Name, &u.Description, &sizesJSON, &u.Status, &u.CreatedAt, &u.UpdatedAt)
+	`, code).Scan(&u.ID, &u.Code, &u.Name, &u.Description, &u.Platform, &sizesJSON, &u.Status, &u.CreatedAt, &u.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
@@ -173,14 +173,18 @@ func (s *PostgresStore) GetAdUnitByCode(ctx context.Context, code string) (*mode
 // CreateAdUnit creates a new ad unit
 func (s *PostgresStore) CreateAdUnit(ctx context.Context, req *models.CreateAdUnitRequest) (*models.AdUnit, error) {
 	sizesJSON, _ := json.Marshal(req.Sizes)
+	platform := req.Platform
+	if platform == "" {
+		platform = "web"
+	}
 	var u models.AdUnit
 	var sizesOut []byte
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO ad_units (code, name, description, sizes, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())
-		RETURNING id, code, name, description, sizes, status, created_at, updated_at
-	`, req.Code, req.Name, req.Description, sizesJSON).Scan(
-		&u.ID, &u.Code, &u.Name, &u.Description, &sizesOut, &u.Status, &u.CreatedAt, &u.UpdatedAt)
+		INSERT INTO ad_units (code, name, description, platform, sizes, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, 'active', NOW(), NOW())
+		RETURNING id, code, name, description, platform, sizes, status, created_at, updated_at
+	`, req.Code, req.Name, req.Description, platform, sizesJSON).Scan(
+		&u.ID, &u.Code, &u.Name, &u.Description, &u.Platform, &sizesOut, &u.Status, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -198,13 +202,14 @@ func (s *PostgresStore) UpdateAdUnit(ctx context.Context, id int, req *models.Up
 		SET code = COALESCE(NULLIF($2, ''), code),
 		    name = COALESCE(NULLIF($3, ''), name),
 		    description = COALESCE($4, description),
-		    sizes = COALESCE($5, sizes),
-		    status = COALESCE(NULLIF($6, ''), status),
+		    platform = COALESCE(NULLIF($5, ''), platform),
+		    sizes = COALESCE($6, sizes),
+		    status = COALESCE(NULLIF($7, ''), status),
 		    updated_at = NOW()
 		WHERE id = $1
-		RETURNING id, code, name, description, sizes, status, created_at, updated_at
-	`, id, req.Code, req.Name, req.Description, sizesJSON, req.Status).Scan(
-		&u.ID, &u.Code, &u.Name, &u.Description, &sizesOut, &u.Status, &u.CreatedAt, &u.UpdatedAt)
+		RETURNING id, code, name, description, platform, sizes, status, created_at, updated_at
+	`, id, req.Code, req.Name, req.Description, req.Platform, sizesJSON, req.Status).Scan(
+		&u.ID, &u.Code, &u.Name, &u.Description, &u.Platform, &sizesOut, &u.Status, &u.CreatedAt, &u.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
@@ -878,4 +883,82 @@ func (s *PostgresStore) GetExportData(ctx context.Context, startDate, endDate ti
 		data = append(data, r)
 	}
 	return data, nil
+}
+
+// Targeting Keys operations
+
+// ListTargetingKeys returns all targeting keys
+func (s *PostgresStore) ListTargetingKeys(ctx context.Context) ([]models.TargetingKey, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, key, values, created_at, updated_at
+		FROM targeting_keys
+		ORDER BY key
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var keys []models.TargetingKey
+	for rows.Next() {
+		var k models.TargetingKey
+		var valuesJSON []byte
+		if err := rows.Scan(&k.ID, &k.Key, &valuesJSON, &k.CreatedAt, &k.UpdatedAt); err != nil {
+			return nil, err
+		}
+		json.Unmarshal(valuesJSON, &k.Values)
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+// GetTargetingKey returns a targeting key by key name
+func (s *PostgresStore) GetTargetingKey(ctx context.Context, key string) (*models.TargetingKey, error) {
+	var k models.TargetingKey
+	var valuesJSON []byte
+	err := s.pool.QueryRow(ctx, `
+		SELECT id, key, values, created_at, updated_at
+		FROM targeting_keys WHERE key = $1
+	`, key).Scan(&k.ID, &k.Key, &valuesJSON, &k.CreatedAt, &k.UpdatedAt)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal(valuesJSON, &k.Values)
+	return &k, nil
+}
+
+// UpsertTargetingKey creates or updates a targeting key
+func (s *PostgresStore) UpsertTargetingKey(ctx context.Context, key string, values []string) (*models.TargetingKey, error) {
+	valuesJSON, _ := json.Marshal(values)
+	var k models.TargetingKey
+	var valuesOut []byte
+	err := s.pool.QueryRow(ctx, `
+		INSERT INTO targeting_keys (key, values, created_at, updated_at)
+		VALUES ($1, $2, NOW(), NOW())
+		ON CONFLICT (key) DO UPDATE SET
+			values = (
+				SELECT jsonb_agg(DISTINCT val)
+				FROM (
+					SELECT jsonb_array_elements_text(targeting_keys.values) AS val
+					UNION
+					SELECT jsonb_array_elements_text($2::jsonb) AS val
+				) combined
+			),
+			updated_at = NOW()
+		RETURNING id, key, values, created_at, updated_at
+	`, key, valuesJSON).Scan(&k.ID, &k.Key, &valuesOut, &k.CreatedAt, &k.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal(valuesOut, &k.Values)
+	return &k, nil
+}
+
+// AddTargetingKeyValues adds values to a targeting key (creates if not exists)
+func (s *PostgresStore) AddTargetingKeyValues(ctx context.Context, key string, values []string) error {
+	_, err := s.UpsertTargetingKey(ctx, key, values)
+	return err
 }

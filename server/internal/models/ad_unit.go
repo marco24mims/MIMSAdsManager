@@ -8,6 +8,7 @@ type AdUnit struct {
 	Code        string    `json:"code"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
+	Platform    string    `json:"platform"`
 	Sizes       [][]int   `json:"sizes"`
 	Status      string    `json:"status"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -19,6 +20,7 @@ type CreateAdUnitRequest struct {
 	Code        string  `json:"code"`
 	Name        string  `json:"name"`
 	Description string  `json:"description"`
+	Platform    string  `json:"platform"`
 	Sizes       [][]int `json:"sizes"`
 }
 
@@ -27,6 +29,7 @@ type UpdateAdUnitRequest struct {
 	Code        string  `json:"code"`
 	Name        string  `json:"name"`
 	Description string  `json:"description"`
+	Platform    string  `json:"platform"`
 	Sizes       [][]int `json:"sizes"`
 	Status      string  `json:"status"`
 }

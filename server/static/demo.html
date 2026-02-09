@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIMS Ad Manager Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        header {
+            background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        header p {
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            padding: 20px;
+        }
+
+        .section h2 {
+            color: #1e40af;
+            margin-bottom: 16px;
+            font-size: 20px;
+        }
+
+        .ad-slot {
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 16px 0;
+            min-height: 50px;
+        }
+
+        .ad-slot.leaderboard {
+            width: 728px;
+            height: 90px;
+            max-width: 100%;
+        }
+
+        .ad-slot.rectangle {
+            width: 300px;
+            height: 250px;
+        }
+
+        .ad-slot-label {
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .control-group select, .control-group input {
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button {
+            background: #3B82F6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #2563EB;
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        button.secondary:hover {
+            background: #5a6268;
+        }
+
+        .status {
+            padding: 12px;
+            background: #e9ecef;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .status .log-entry {
+            margin-bottom: 4px;
+        }
+
+        .status .log-entry.success {
+            color: #28a745;
+        }
+
+        .status .log-entry.error {
+            color: #dc3545;
+        }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+
+            .ad-slot.leaderboard {
+                width: 100%;
+                height: auto;
+                min-height: 90px;
+            }
+        }
+
+        .sidebar-ad {
+            position: sticky;
+            top: 20px;
+        }
+
+        .article {
+            padding: 20px 0;
+        }
+
+        .article h3 {
+            margin-bottom: 12px;
+        }
+
+        .article p {
+            margin-bottom: 16px;
+            color: #495057;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>MIMS Ad Manager Demo</h1>
+        <p>Test page for ad serving, targeting, and tracking</p>
+    </header>
+
+    <div class="container">
+        <!-- Controls Section -->
+        <div class="section">
+            <h2>Targeting Controls</h2>
+            <div class="controls">
+                <div class="control-group">
+                    <label>Section:</label>
+                    <select id="section">
+                        <option value="home">Home</option>
+                        <option value="news">News</option>
+                        <option value="sports">Sports</option>
+                        <option value="entertainment">Entertainment</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Country:</label>
+                    <select id="country">
+                        <option value="sg">Singapore</option>
+                        <option value="my">Malaysia</option>
+                        <option value="ph">Philippines</option>
+                        <option value="id">Indonesia</option>
+                    </select>
+                </div>
+                <button onclick="loadAds()">Load Ads</button>
+                <button onclick="refreshAds()" class="secondary">Refresh</button>
+            </div>
+            <div class="status" id="status">
+                <div class="log-entry">Ready. Click "Load Ads" to fetch ads.</div>
+            </div>
+        </div>
+
+        <!-- Leaderboard Ad -->
+        <div class="section">
+            <h2>Leaderboard Banner (728x90)</h2>
+            <div id="leaderboard-slot" class="ad-slot leaderboard">
+                <span class="ad-slot-label">Ad will appear here</span>
+            </div>
+        </div>
+
+        <!-- Two Column Layout -->
+        <div class="two-column">
+            <!-- Main Content -->
+            <div class="section">
+                <h2>Sample Article Content</h2>
+                <div class="article">
+                    <h3>MIMS Ad Manager: A Modern Ad Serving Solution</h3>
+                    <p>
+                        MIMS Ad Manager is a proof-of-concept advertising platform that demonstrates
+                        key ad serving capabilities including targeting, frequency capping, and viewability tracking.
+                    </p>
+                    <p>
+                        The platform supports multiple ad formats across web and mobile platforms,
+                        with real-time reporting and campaign management through an intuitive dashboard.
+                    </p>
+                    <p>
+                        Key features include:
+                    </p>
+                    <ul style="margin-left: 20px; margin-bottom: 16px; color: #495057;">
+                        <li>Key-value targeting</li>
+                        <li>Per-day frequency capping</li>
+                        <li>Viewability tracking (50%/1s standard)</li>
+                        <li>Cross-platform SDKs</li>
+                    </ul>
+                    <p>
+                        Scroll down to see the sidebar ad and observe viewability tracking in action.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div>
+                <div class="section sidebar-ad">
+                    <h2>Sidebar Ad (300x250)</h2>
+                    <div id="sidebar-slot" class="ad-slot rectangle">
+                        <span class="ad-slot-label">Ad will appear here</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        MIMS Ad Manager POC &copy; 2024 | <a href="http://10.50.10.65:5000" style="color: #3B82F6;">Dashboard</a>
+    </footer>
+
+    <!-- MIMS Ad Tag -->
+    <script src="/static/tag.js"></script>
+    <script>
+        const statusEl = document.getElementById('status');
+
+        function log(message, type = '') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + type;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            statusEl.appendChild(entry);
+            statusEl.scrollTop = statusEl.scrollHeight;
+        }
+
+        function clearStatus() {
+            statusEl.innerHTML = '';
+        }
+
+        function loadAds() {
+            clearStatus();
+            log('Initializing MIMS Ads SDK...');
+
+            // Initialize SDK - use current origin
+            MIMSAds.init({
+                serverUrl: window.location.origin
+            });
+
+            log('User ID: ' + MIMSAds.getUserId());
+
+            // Get targeting values
+            const section = document.getElementById('section').value;
+            const country = document.getElementById('country').value;
+
+            log(`Setting targeting: section=${section}, country=${country}`);
+
+            // Set targeting
+            MIMSAds.clearTargeting();
+            MIMSAds.setTargeting('section', section);
+            MIMSAds.setTargeting('country', country);
+
+            // Define ad slots
+            log('Defining ad slots...');
+            MIMSAds.defineSlot('leaderboard-slot', { width: 728, height: 90 });
+            MIMSAds.defineSlot('sidebar-slot', { width: 300, height: 250 });
+
+            // Display ads
+            log('Requesting ads from server...');
+            MIMSAds.display().then(() => {
+                log('Ads displayed successfully!', 'success');
+            }).catch(err => {
+                log('Error: ' + err.message, 'error');
+            });
+        }
+
+        function refreshAds() {
+            clearStatus();
+            log('Refreshing ads...');
+
+            const section = document.getElementById('section').value;
+            const country = document.getElementById('country').value;
+
+            MIMSAds.clearTargeting();
+            MIMSAds.setTargeting('section', section);
+            MIMSAds.setTargeting('country', country);
+
+            MIMSAds.refresh().then(() => {
+                log('Ads refreshed successfully!', 'success');
+            }).catch(err => {
+                log('Error: ' + err.message, 'error');
+            });
+        }
+
+        // Auto-load ads on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            // Small delay to ensure script is loaded
+            setTimeout(() => {
+                if (typeof MIMSAds !== 'undefined') {
+                    loadAds();
+                } else {
+                    log('Error: MIMSAds SDK not loaded. Make sure the server is running.', 'error');
+                }
+            }, 500);
+        });
+    </script>
+</body>
+</html>

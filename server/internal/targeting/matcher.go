@@ -1,0 +1,109 @@
+package targeting
+
+import (
+	"github.com/mims/ad-manager/internal/models"
+)
+
+// Matcher handles targeting logic
+type Matcher struct{}
+
+// NewMatcher creates a new Matcher
+func NewMatcher() *Matcher {
+	return &Matcher{}
+}
+
+// Match filters line items based on targeting rules and slot dimensions
+func (m *Matcher) Match(targeting map[string]string, lineItems []models.LineItem, width, height int) []models.LineItem {
+	var matched []models.LineItem
+
+	for _, li := range lineItems {
+		// Check if line item has any creatives matching the size
+		hasMatchingCreative := false
+		for _, creative := range li.Creatives {
+			if creative.Width == width && creative.Height == height && creative.Status == "active" {
+				hasMatchingCreative = true
+				break
+			}
+		}
+		if !hasMatchingCreative {
+			continue
+		}
+
+		// Check targeting rules
+		if m.matchesTargeting(targeting, li.TargetingRules) {
+			matched = append(matched, li)
+		}
+	}
+
+	return matched
+}
+
+// matchesTargeting checks if the request targeting matches all line item rules
+func (m *Matcher) matchesTargeting(targeting map[string]string, rules []models.TargetingRule) bool {
+	// No rules means match all
+	if len(rules) == 0 {
+		return true
+	}
+
+	// All rules must match (AND logic)
+	for _, rule := range rules {
+		requestValue, exists := targeting[rule.Key]
+		if !exists {
+			// Key not provided in request - rule doesn't match
+			return false
+		}
+
+		matched := false
+		switch rule.Operator {
+		case "EQ":
+			// Must equal one of the values
+			for _, v := range rule.Values {
+				if requestValue == v {
+					matched = true
+					break
+				}
+			}
+		case "IN":
+			// Request value must be in the list
+			for _, v := range rule.Values {
+				if requestValue == v {
+					matched = true
+					break
+				}
+			}
+		case "NOT_IN":
+			// Request value must NOT be in the list
+			matched = true
+			for _, v := range rule.Values {
+				if requestValue == v {
+					matched = false
+					break
+				}
+			}
+		default:
+			// Unknown operator, treat as IN
+			for _, v := range rule.Values {
+				if requestValue == v {
+					matched = true
+					break
+				}
+			}
+		}
+
+		if !matched {
+			return false
+		}
+	}
+
+	return true
+}
+
+// SelectCreative selects the best creative for the given dimensions
+func (m *Matcher) SelectCreative(lineItem models.LineItem, width, height int) *models.Creative {
+	for _, creative := range lineItem.Creatives {
+		if creative.Width == width && creative.Height == height && creative.Status == "active" {
+			return &creative
+		}
+	}
+	return nil
+}

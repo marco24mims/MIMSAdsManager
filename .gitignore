@@ -1,0 +1,67 @@
+# Claude Code
+.claude/
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+dist/
+build/
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test
+coverage/
+
+# Go
+*.test
+*.out
+
+# Android
+*.apk
+*.aab
+*.dex
+*.class
+local.properties
+.gradle/
+.cxx/
+captures/
+
+# iOS
+*.xcuserstate
+xcuserdata/
+*.xcworkspace
+DerivedData/
+Pods/
+
+# Database
+*.db
+*.sqlite
+pgdata/
+
+# Docker
+docker-compose.override.yml

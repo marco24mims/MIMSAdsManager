@@ -9,9 +9,13 @@ import {
   createCreative,
   deleteCreative,
   uploadImage,
+  getAdUnits,
+  getLineItemAdUnits,
+  setLineItemAdUnits,
   type LineItem,
   type TargetingRule,
   type Creative,
+  type AdUnit,
 } from '../api';
 
 export default function LineItemDetail() {
@@ -21,6 +25,12 @@ export default function LineItemDetail() {
   const [creatives, setCreatives] = useState<Creative[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [adUnits, setAdUnits] = useState<AdUnit[]>([]);
+  const [selectedAdUnitIds, setSelectedAdUnitIds] = useState<number[]>([]);
+
+  // Settings modal
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [editingSettings, setEditingSettings] = useState({ priority: 5, weight: 100 });
 
   // Targeting modal
   const [showTargetingModal, setShowTargetingModal] = useState(false);
@@ -49,14 +59,18 @@ export default function LineItemDetail() {
   async function loadData() {
     try {
       setLoading(true);
-      const [lineItemData, rulesData, creativesData] = await Promise.all([
+      const [lineItemData, rulesData, creativesData, adUnitsData, lineItemAdUnits] = await Promise.all([
         getLineItem(Number(id)),
         getTargetingRules(Number(id)),
         getCreatives(Number(id)),
+        getAdUnits(),
+        getLineItemAdUnits(Number(id)),
       ]);
       setLineItem(lineItemData);
       setTargetingRulesState(rulesData);
       setCreatives(creativesData);
+      setAdUnits(adUnitsData || []);
+      setSelectedAdUnitIds(lineItemAdUnits?.ad_unit_ids || []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load line item');
@@ -73,6 +87,39 @@ export default function LineItemDetail() {
       setLineItem(updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update line item');
+    }
+  }
+
+  function openSettingsModal() {
+    if (!lineItem) return;
+    setEditingSettings({ priority: lineItem.priority, weight: lineItem.weight || 100 });
+    setShowSettingsModal(true);
+  }
+
+  async function handleSaveSettings() {
+    if (!lineItem) return;
+    try {
+      const updated = await updateLineItem(lineItem.id, {
+        priority: editingSettings.priority,
+        weight: editingSettings.weight,
+      });
+      setLineItem(updated);
+      setShowSettingsModal(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update settings');
+    }
+  }
+
+  async function handleAdUnitToggle(adUnitId: number) {
+    const newIds = selectedAdUnitIds.includes(adUnitId)
+      ? selectedAdUnitIds.filter((id) => id !== adUnitId)
+      : [...selectedAdUnitIds, adUnitId];
+
+    try {
+      await setLineItemAdUnits(Number(id), newIds);
+      setSelectedAdUnitIds(newIds);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update ad units');
     }
   }
 
@@ -221,7 +268,7 @@ export default function LineItemDetail() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">{lineItem.name}</h2>
-            <div className="mt-2 flex items-center gap-4">
+            <div className="mt-2 flex items-center gap-4 flex-wrap">
               <span
                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                   lineItem.status === 'active'
@@ -232,22 +279,31 @@ export default function LineItemDetail() {
                 {lineItem.status}
               </span>
               <span className="text-sm text-gray-500">Priority: {lineItem.priority}</span>
+              <span className="text-sm text-gray-500">Weight: {lineItem.weight || 100}</span>
               <span className="text-sm text-gray-500">
                 Freq Cap: {lineItem.frequency_cap || 'None'}
                 {lineItem.frequency_cap > 0 && `/${lineItem.frequency_cap_period}`}
               </span>
             </div>
           </div>
-          <button
-            onClick={handleToggleStatus}
-            className={`px-4 py-2 rounded-md text-sm font-medium ${
-              lineItem.status === 'active'
-                ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-                : 'bg-green-100 text-green-800 hover:bg-green-200'
-            }`}
-          >
-            {lineItem.status === 'active' ? 'Pause' : 'Activate'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={openSettingsModal}
+              className="px-4 py-2 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+            >
+              Settings
+            </button>
+            <button
+              onClick={handleToggleStatus}
+              className={`px-4 py-2 rounded-md text-sm font-medium ${
+                lineItem.status === 'active'
+                  ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                  : 'bg-green-100 text-green-800 hover:bg-green-200'
+              }`}
+            >
+              {lineItem.status === 'active' ? 'Pause' : 'Activate'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -280,6 +336,45 @@ export default function LineItemDetail() {
                 <span className="bg-gray-100 px-2 py-1 rounded">{rule.values.join(', ')}</span>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Ad Units Section */}
+      <div className="bg-white shadow rounded-lg p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900">Ad Unit Targeting</h3>
+        </div>
+        {adUnits.length === 0 ? (
+          <div className="text-gray-500 text-sm">No ad units available.</div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500 mb-3">
+              Select which ad units this line item can serve to. If none selected, it can serve to all ad units.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {adUnits.map((unit) => (
+                <label
+                  key={unit.id}
+                  className={`flex items-center p-3 rounded-lg border cursor-pointer transition-colors ${
+                    selectedAdUnitIds.includes(unit.id)
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedAdUnitIds.includes(unit.id)}
+                    onChange={() => handleAdUnitToggle(unit.id)}
+                    className="h-4 w-4 text-blue-600 rounded"
+                  />
+                  <div className="ml-3">
+                    <div className="text-sm font-medium text-gray-900">{unit.name}</div>
+                    <div className="text-xs text-gray-500">{unit.code}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -549,6 +644,60 @@ export default function LineItemDetail() {
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
               >
                 Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium mb-4">Line Item Settings</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={editingSettings.priority}
+                  onChange={(e) => setEditingSettings({ ...editingSettings, priority: Number(e.target.value) })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Lower number = higher priority. Line items with priority 1 are served first.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Weight</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="1000"
+                  value={editingSettings.weight}
+                  onChange={(e) => setEditingSettings({ ...editingSettings, weight: Number(e.target.value) })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  When multiple line items have the same priority, weight determines rotation ratio.
+                  E.g., weight 200 vs 100 means 2:1 serving ratio.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border border-gray-300 rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveSettings}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+              >
+                Save
               </button>
             </div>
           </div>

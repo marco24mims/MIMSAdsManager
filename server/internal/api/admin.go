@@ -391,3 +391,136 @@ func (h *AdminHandler) DeleteCreative(c *fiber.Ctx) error {
 
 	return c.SendStatus(fiber.StatusNoContent)
 }
+
+// Ad Unit handlers
+
+// ListAdUnits returns all ad units
+func (h *AdminHandler) ListAdUnits(c *fiber.Ctx) error {
+	units, err := h.store.ListAdUnits(c.Context())
+	if err != nil {
+		return NewInternalError("Failed to list ad units")
+	}
+	if units == nil {
+		units = []models.AdUnit{}
+	}
+	return c.JSON(units)
+}
+
+// GetAdUnit returns a specific ad unit
+func (h *AdminHandler) GetAdUnit(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return NewBadRequest("Invalid ad unit ID")
+	}
+
+	unit, err := h.store.GetAdUnit(c.Context(), id)
+	if err != nil {
+		return NewInternalError("Failed to get ad unit")
+	}
+	if unit == nil {
+		return NewNotFound("Ad unit not found")
+	}
+
+	return c.JSON(unit)
+}
+
+// CreateAdUnit creates a new ad unit
+func (h *AdminHandler) CreateAdUnit(c *fiber.Ctx) error {
+	var req models.CreateAdUnitRequest
+	if err := c.BodyParser(&req); err != nil {
+		return NewBadRequest("Invalid request body")
+	}
+
+	if req.Code == "" {
+		return NewBadRequest("Code is required")
+	}
+	if req.Name == "" {
+		return NewBadRequest("Name is required")
+	}
+
+	unit, err := h.store.CreateAdUnit(c.Context(), &req)
+	if err != nil {
+		return NewInternalError("Failed to create ad unit")
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(unit)
+}
+
+// UpdateAdUnit updates an ad unit
+func (h *AdminHandler) UpdateAdUnit(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return NewBadRequest("Invalid ad unit ID")
+	}
+
+	var req models.UpdateAdUnitRequest
+	if err := c.BodyParser(&req); err != nil {
+		return NewBadRequest("Invalid request body")
+	}
+
+	unit, err := h.store.UpdateAdUnit(c.Context(), id, &req)
+	if err != nil {
+		return NewInternalError("Failed to update ad unit")
+	}
+	if unit == nil {
+		return NewNotFound("Ad unit not found")
+	}
+
+	return c.JSON(unit)
+}
+
+// DeleteAdUnit deletes an ad unit
+func (h *AdminHandler) DeleteAdUnit(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return NewBadRequest("Invalid ad unit ID")
+	}
+
+	if err := h.store.DeleteAdUnit(c.Context(), id); err != nil {
+		return NewInternalError("Failed to delete ad unit")
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+// GetLineItemAdUnits returns ad units for a line item
+func (h *AdminHandler) GetLineItemAdUnits(c *fiber.Ctx) error {
+	lineItemID, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return NewBadRequest("Invalid line item ID")
+	}
+
+	ids, err := h.store.GetLineItemAdUnits(c.Context(), lineItemID)
+	if err != nil {
+		return NewInternalError("Failed to get line item ad units")
+	}
+	if ids == nil {
+		ids = []int{}
+	}
+
+	return c.JSON(fiber.Map{"ad_unit_ids": ids})
+}
+
+// SetLineItemAdUnits sets ad units for a line item
+func (h *AdminHandler) SetLineItemAdUnits(c *fiber.Ctx) error {
+	lineItemID, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return NewBadRequest("Invalid line item ID")
+	}
+
+	var req struct {
+		AdUnitIDs []int `json:"ad_unit_ids"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return NewBadRequest("Invalid request body")
+	}
+
+	if err := h.store.SetLineItemAdUnits(c.Context(), lineItemID, req.AdUnitIDs); err != nil {
+		return NewInternalError("Failed to set line item ad units")
+	}
+
+	// Refresh cache
+	h.cache.Refresh(c.Context(), h.store)
+
+	return c.JSON(fiber.Map{"ad_unit_ids": req.AdUnitIDs})
+}

@@ -107,6 +107,161 @@ func (s *PostgresStore) DeleteCampaign(ctx context.Context, id int) error {
 	return err
 }
 
+// Ad Unit operations
+
+// ListAdUnits returns all ad units
+func (s *PostgresStore) ListAdUnits(ctx context.Context) ([]models.AdUnit, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, code, name, description, sizes, status, created_at, updated_at
+		FROM ad_units
+		ORDER BY name
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var units []models.AdUnit
+	for rows.Next() {
+		var u models.AdUnit
+		var sizesJSON []byte
+		if err := rows.Scan(&u.ID, &u.Code, &u.Name, &u.Description, &sizesJSON, &u.Status, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		json.Unmarshal(sizesJSON, &u.Sizes)
+		units = append(units, u)
+	}
+	return units, nil
+}
+
+// GetAdUnit returns an ad unit by ID
+func (s *PostgresStore) GetAdUnit(ctx context.Context, id int) (*models.AdUnit, error) {
+	var u models.AdUnit
+	var sizesJSON []byte
+	err := s.pool.QueryRow(ctx, `
+		SELECT id, code, name, description, sizes, status, created_at, updated_at
+		FROM ad_units WHERE id = $1
+	`, id).Scan(&u.ID, &u.Code, &u.Name, &u.Description, &sizesJSON, &u.Status, &u.CreatedAt, &u.UpdatedAt)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal(sizesJSON, &u.Sizes)
+	return &u, nil
+}
+
+// GetAdUnitByCode returns an ad unit by code
+func (s *PostgresStore) GetAdUnitByCode(ctx context.Context, code string) (*models.AdUnit, error) {
+	var u models.AdUnit
+	var sizesJSON []byte
+	err := s.pool.QueryRow(ctx, `
+		SELECT id, code, name, description, sizes, status, created_at, updated_at
+		FROM ad_units WHERE code = $1
+	`, code).Scan(&u.ID, &u.Code, &u.Name, &u.Description, &sizesJSON, &u.Status, &u.CreatedAt, &u.UpdatedAt)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal(sizesJSON, &u.Sizes)
+	return &u, nil
+}
+
+// CreateAdUnit creates a new ad unit
+func (s *PostgresStore) CreateAdUnit(ctx context.Context, req *models.CreateAdUnitRequest) (*models.AdUnit, error) {
+	sizesJSON, _ := json.Marshal(req.Sizes)
+	var u models.AdUnit
+	var sizesOut []byte
+	err := s.pool.QueryRow(ctx, `
+		INSERT INTO ad_units (code, name, description, sizes, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())
+		RETURNING id, code, name, description, sizes, status, created_at, updated_at
+	`, req.Code, req.Name, req.Description, sizesJSON).Scan(
+		&u.ID, &u.Code, &u.Name, &u.Description, &sizesOut, &u.Status, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal(sizesOut, &u.Sizes)
+	return &u, nil
+}
+
+// UpdateAdUnit updates an ad unit
+func (s *PostgresStore) UpdateAdUnit(ctx context.Context, id int, req *models.UpdateAdUnitRequest) (*models.AdUnit, error) {
+	sizesJSON, _ := json.Marshal(req.Sizes)
+	var u models.AdUnit
+	var sizesOut []byte
+	err := s.pool.QueryRow(ctx, `
+		UPDATE ad_units
+		SET code = COALESCE(NULLIF($2, ''), code),
+		    name = COALESCE(NULLIF($3, ''), name),
+		    description = COALESCE($4, description),
+		    sizes = COALESCE($5, sizes),
+		    status = COALESCE(NULLIF($6, ''), status),
+		    updated_at = NOW()
+		WHERE id = $1
+		RETURNING id, code, name, description, sizes, status, created_at, updated_at
+	`, id, req.Code, req.Name, req.Description, sizesJSON, req.Status).Scan(
+		&u.ID, &u.Code, &u.Name, &u.Description, &sizesOut, &u.Status, &u.CreatedAt, &u.UpdatedAt)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal(sizesOut, &u.Sizes)
+	return &u, nil
+}
+
+// DeleteAdUnit deletes an ad unit
+func (s *PostgresStore) DeleteAdUnit(ctx context.Context, id int) error {
+	_, err := s.pool.Exec(ctx, `DELETE FROM ad_units WHERE id = $1`, id)
+	return err
+}
+
+// GetLineItemAdUnits returns ad unit IDs for a line item
+func (s *PostgresStore) GetLineItemAdUnits(ctx context.Context, lineItemID int) ([]int, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT ad_unit_id FROM line_item_ad_units WHERE line_item_id = $1
+	`, lineItemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+// SetLineItemAdUnits sets ad unit targeting for a line item
+func (s *PostgresStore) SetLineItemAdUnits(ctx context.Context, lineItemID int, adUnitIDs []int) error {
+	// Delete existing
+	_, err := s.pool.Exec(ctx, `DELETE FROM line_item_ad_units WHERE line_item_id = $1`, lineItemID)
+	if err != nil {
+		return err
+	}
+
+	// Insert new
+	for _, adUnitID := range adUnitIDs {
+		_, err := s.pool.Exec(ctx, `
+			INSERT INTO line_item_ad_units (line_item_id, ad_unit_id) VALUES ($1, $2)
+		`, lineItemID, adUnitID)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Line Item operations
 
 // ListLineItems returns line items for a campaign

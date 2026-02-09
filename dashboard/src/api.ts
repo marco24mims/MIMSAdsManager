@@ -13,6 +13,7 @@ interface LineItem {
   campaign_id: number;
   name: string;
   priority: number;
+  weight: number;
   frequency_cap: number;
   frequency_cap_period: string;
   status: string;
@@ -20,6 +21,18 @@ interface LineItem {
   updated_at: string;
   targeting_rules?: TargetingRule[];
   creatives?: Creative[];
+  ad_unit_ids?: number[];
+}
+
+interface AdUnit {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  sizes: number[][];
+  status: string;
+  created_at: string;
+  updated_at: string;
 }
 
 interface TargetingRule {
@@ -279,4 +292,48 @@ export async function uploadImage(file: File): Promise<UploadResponse> {
   return response.json();
 }
 
-export type { Campaign, LineItem, TargetingRule, Creative, ReportSummary, DailyStats };
+// Ad Units
+export async function getAdUnits(): Promise<AdUnit[]> {
+  return fetchAPI<AdUnit[]>('/api/ad-units');
+}
+
+export async function getAdUnit(id: number): Promise<AdUnit> {
+  return fetchAPI<AdUnit>(`/api/ad-units/${id}`);
+}
+
+export async function createAdUnit(data: {
+  code: string;
+  name: string;
+  description?: string;
+  sizes?: number[][];
+}): Promise<AdUnit> {
+  return fetchAPI<AdUnit>('/api/ad-units', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateAdUnit(id: number, data: Partial<AdUnit>): Promise<AdUnit> {
+  return fetchAPI<AdUnit>(`/api/ad-units/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteAdUnit(id: number): Promise<void> {
+  return fetchAPI<void>(`/api/ad-units/${id}`, { method: 'DELETE' });
+}
+
+// Line Item Ad Units
+export async function getLineItemAdUnits(lineItemId: number): Promise<{ ad_unit_ids: number[] }> {
+  return fetchAPI(`/api/line-items/${lineItemId}/ad-units`);
+}
+
+export async function setLineItemAdUnits(lineItemId: number, adUnitIds: number[]): Promise<{ ad_unit_ids: number[] }> {
+  return fetchAPI(`/api/line-items/${lineItemId}/ad-units`, {
+    method: 'POST',
+    body: JSON.stringify({ ad_unit_ids: adUnitIds }),
+  });
+}
+
+export type { Campaign, LineItem, TargetingRule, Creative, ReportSummary, DailyStats, AdUnit };

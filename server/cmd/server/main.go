@@ -148,6 +148,17 @@ func main() {
 	apiGroup.Put("/creatives/:id", adminHandler.UpdateCreative)
 	apiGroup.Delete("/creatives/:id", adminHandler.DeleteCreative)
 
+	// Ad Units
+	apiGroup.Get("/ad-units", adminHandler.ListAdUnits)
+	apiGroup.Post("/ad-units", adminHandler.CreateAdUnit)
+	apiGroup.Get("/ad-units/:id", adminHandler.GetAdUnit)
+	apiGroup.Put("/ad-units/:id", adminHandler.UpdateAdUnit)
+	apiGroup.Delete("/ad-units/:id", adminHandler.DeleteAdUnit)
+
+	// Line Item Ad Unit Targeting
+	apiGroup.Get("/line-items/:id/ad-units", adminHandler.GetLineItemAdUnits)
+	apiGroup.Post("/line-items/:id/ad-units", adminHandler.SetLineItemAdUnits)
+
 	// Reports
 	apiGroup.Get("/reports/summary", reportsHandler.GetSummary)
 	apiGroup.Get("/reports/campaigns/:id", reportsHandler.GetCampaignReport)

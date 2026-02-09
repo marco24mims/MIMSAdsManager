@@ -106,6 +106,9 @@ func main() {
 		return c.JSON(fiber.Map{"status": "ok", "timestamp": time.Now().Unix()})
 	})
 
+	// Serve static files (JavaScript tag)
+	app.Static("/static", "./static")
+
 	// Ad serving routes
 	v1 := app.Group("/v1")
 	v1.Post("/ads", adsHandler.GetAds)

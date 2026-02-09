@@ -152,6 +152,9 @@ func main() {
 	apiGroup.Get("/reports/summary", reportsHandler.GetSummary)
 	apiGroup.Get("/reports/campaigns/:id", reportsHandler.GetCampaignReport)
 	apiGroup.Get("/reports/daily", reportsHandler.GetDailyReport)
+	apiGroup.Get("/reports/keyvalue", reportsHandler.GetKeyValueReport)
+	apiGroup.Get("/reports/lineitems", reportsHandler.GetLineItemReport)
+	apiGroup.Get("/reports/export", reportsHandler.ExportReport)
 
 	// Uploads
 	apiGroup.Post("/uploads", uploadHandler.UploadImage)

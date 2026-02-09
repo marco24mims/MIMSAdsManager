@@ -29,6 +29,7 @@ func (h *TrackingHandler) TrackImpression(c *fiber.Ctx) error {
 	platform := c.Query("p")
 	country := c.Query("co")
 	adUnit := c.Query("au")
+	section := c.Query("sec")
 
 	if impressionID == "" || lineItemID == 0 {
 		return c.SendStatus(fiber.StatusBadRequest)
@@ -43,6 +44,7 @@ func (h *TrackingHandler) TrackImpression(c *fiber.Ctx) error {
 		Platform:     platform,
 		Country:      country,
 		AdUnit:       adUnit,
+		Section:      section,
 	}
 
 	if err := h.store.RecordEvent(c.Context(), event); err != nil {

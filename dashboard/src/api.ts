@@ -214,6 +214,47 @@ export async function getCampaignReport(
   return fetchAPI(`/api/reports/campaigns/${campaignId}?${params}`);
 }
 
+interface KeyValueStat {
+  key: string;
+  value: string;
+  impressions: number;
+  clicks: number;
+  viewable: number;
+  ctr: number;
+}
+
+interface LineItemStat {
+  line_item_id: number;
+  line_item_name: string;
+  campaign_name: string;
+  impressions: number;
+  clicks: number;
+  viewable: number;
+  ctr: number;
+}
+
+export async function getKeyValueReport(
+  key: string,
+  startDate?: string,
+  endDate?: string
+): Promise<{ key: string; data: KeyValueStat[] }> {
+  const params = new URLSearchParams();
+  params.set('key', key);
+  if (startDate) params.set('start_date', startDate);
+  if (endDate) params.set('end_date', endDate);
+  return fetchAPI(`/api/reports/keyvalue?${params}`);
+}
+
+export async function getLineItemReport(
+  startDate?: string,
+  endDate?: string
+): Promise<{ data: LineItemStat[] }> {
+  const params = new URLSearchParams();
+  if (startDate) params.set('start_date', startDate);
+  if (endDate) params.set('end_date', endDate);
+  return fetchAPI(`/api/reports/lineitems?${params}`);
+}
+
 // Uploads
 interface UploadResponse {
   success: boolean;

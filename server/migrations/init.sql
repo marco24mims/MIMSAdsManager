@@ -57,6 +57,7 @@ CREATE TABLE events (
     country VARCHAR(10),
     platform VARCHAR(20),
     ad_unit VARCHAR(100),
+    section VARCHAR(100),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -64,6 +65,8 @@ CREATE TABLE events (
 CREATE INDEX idx_events_type_created ON events(event_type, created_at);
 CREATE INDEX idx_events_line_item ON events(line_item_id, created_at);
 CREATE INDEX idx_events_impression_id ON events(impression_id);
+CREATE INDEX idx_events_country ON events(country, created_at);
+CREATE INDEX idx_events_section ON events(section, created_at);
 CREATE INDEX idx_line_items_campaign ON line_items(campaign_id);
 CREATE INDEX idx_line_items_status ON line_items(status);
 CREATE INDEX idx_creatives_line_item ON creatives(line_item_id);
@@ -89,5 +92,7 @@ INSERT INTO targeting_rules (line_item_id, key, operator, values) VALUES
 INSERT INTO creatives (line_item_id, name, width, height, image_url, click_url) VALUES
     (1, 'Banner 728x90', 728, 90, 'https://via.placeholder.com/728x90/4A90A4/FFFFFF?text=MIMS+Ad+728x90', 'https://example.com/landing1'),
     (1, 'Banner 300x250', 300, 250, 'https://via.placeholder.com/300x250/4A90A4/FFFFFF?text=MIMS+Ad+300x250', 'https://example.com/landing1'),
-    (2, 'News Banner', 728, 90, 'https://via.placeholder.com/728x90/2ECC71/FFFFFF?text=News+Banner', 'https://example.com/landing2'),
-    (3, 'Sidebar Banner', 300, 600, 'https://via.placeholder.com/300x600/E74C3C/FFFFFF?text=Sidebar+Ad', 'https://example.com/landing3');
+    (2, 'News Banner 728x90', 728, 90, 'https://via.placeholder.com/728x90/2ECC71/FFFFFF?text=News+Banner', 'https://example.com/landing2'),
+    (2, 'News Banner 300x250', 300, 250, 'https://via.placeholder.com/300x250/2ECC71/FFFFFF?text=News+Sidebar', 'https://example.com/landing2'),
+    (3, 'Sports Banner 728x90', 728, 90, 'https://via.placeholder.com/728x90/E74C3C/FFFFFF?text=Sports+Ad', 'https://example.com/landing3'),
+    (3, 'Sports Banner 300x250', 300, 250, 'https://via.placeholder.com/300x250/E74C3C/FFFFFF?text=Sports+Sidebar', 'https://example.com/landing3');

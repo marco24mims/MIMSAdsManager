@@ -1,7 +1,9 @@
 package api
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -99,4 +101,102 @@ func (h *ReportsHandler) parseDateRange(c *fiber.Ctx) (time.Time, time.Time) {
 	}
 
 	return startDate, endDate
+}
+
+// GetKeyValueReport returns stats grouped by a key
+func (h *ReportsHandler) GetKeyValueReport(c *fiber.Ctx) error {
+	key := c.Query("key", "country")
+	startDate, endDate := h.parseDateRange(c)
+
+	stats, err := h.store.GetKeyValueReport(c.Context(), key, startDate, endDate)
+	if err != nil {
+		return NewInternalError("Failed to get key-value report")
+	}
+
+	if stats == nil {
+		stats = []storage.KeyValueStats{}
+	}
+
+	return c.JSON(fiber.Map{
+		"key":        key,
+		"data":       stats,
+		"start_date": startDate.Format("2006-01-02"),
+		"end_date":   endDate.AddDate(0, 0, -1).Format("2006-01-02"),
+	})
+}
+
+// GetLineItemReport returns stats grouped by line item
+func (h *ReportsHandler) GetLineItemReport(c *fiber.Ctx) error {
+	startDate, endDate := h.parseDateRange(c)
+
+	stats, err := h.store.GetLineItemReport(c.Context(), startDate, endDate)
+	if err != nil {
+		return NewInternalError("Failed to get line item report")
+	}
+
+	if stats == nil {
+		stats = []storage.LineItemStats{}
+	}
+
+	return c.JSON(fiber.Map{
+		"data":       stats,
+		"start_date": startDate.Format("2006-01-02"),
+		"end_date":   endDate.AddDate(0, 0, -1).Format("2006-01-02"),
+	})
+}
+
+// ExportReport exports report data as CSV
+func (h *ReportsHandler) ExportReport(c *fiber.Ctx) error {
+	startDate, endDate := h.parseDateRange(c)
+	groupBy := c.Query("group_by", "daily")
+	format := c.Query("format", "csv")
+
+	data, err := h.store.GetExportData(c.Context(), startDate, endDate, groupBy)
+	if err != nil {
+		return NewInternalError("Failed to get export data")
+	}
+
+	if format == "json" {
+		return c.JSON(fiber.Map{
+			"data":       data,
+			"start_date": startDate.Format("2006-01-02"),
+			"end_date":   endDate.AddDate(0, 0, -1).Format("2006-01-02"),
+		})
+	}
+
+	// Generate CSV
+	var csv strings.Builder
+	csv.WriteString("Date,Campaign,Line Item,Country,Section,Platform,Impressions,Clicks,Viewable,CTR\n")
+
+	for _, row := range data {
+		csv.WriteString(fmt.Sprintf("%s,%s,%s,%s,%s,%s,%d,%d,%d,%.2f%%\n",
+			row.Date,
+			escapeCsv(row.CampaignName),
+			escapeCsv(row.LineItemName),
+			row.Country,
+			row.Section,
+			row.Platform,
+			row.Impressions,
+			row.Clicks,
+			row.Viewable,
+			row.CTR,
+		))
+	}
+
+	filename := fmt.Sprintf("report_%s_to_%s.csv",
+		startDate.Format("2006-01-02"),
+		endDate.AddDate(0, 0, -1).Format("2006-01-02"))
+
+	c.Set("Content-Type", "text/csv")
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+
+	return c.SendString(csv.String())
+}
+
+// escapeCsv escapes a string for CSV
+func escapeCsv(s string) string {
+	if strings.Contains(s, ",") || strings.Contains(s, "\"") || strings.Contains(s, "\n") {
+		return "\"" + strings.ReplaceAll(s, "\"", "\"\"") + "\""
+	}
+	return s
 }

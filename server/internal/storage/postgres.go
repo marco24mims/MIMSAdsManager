@@ -370,9 +370,9 @@ func (s *PostgresStore) DeleteCreative(ctx context.Context, id int) error {
 // RecordEvent records a tracking event
 func (s *PostgresStore) RecordEvent(ctx context.Context, event *models.Event) error {
 	_, err := s.pool.Exec(ctx, `
-		INSERT INTO events (event_type, impression_id, line_item_id, creative_id, user_id, country, platform, ad_unit, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-	`, event.EventType, event.ImpressionID, event.LineItemID, event.CreativeID, event.UserID, event.Country, event.Platform, event.AdUnit)
+		INSERT INTO events (event_type, impression_id, line_item_id, creative_id, user_id, country, platform, ad_unit, section, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+	`, event.EventType, event.ImpressionID, event.LineItemID, event.CreativeID, event.UserID, event.Country, event.Platform, event.AdUnit, event.Section)
 	return err
 }
 
@@ -531,4 +531,179 @@ func (s *PostgresStore) GetCampaignReport(ctx context.Context, campaignID int, s
 	}
 
 	return &report, nil
+}
+
+// KeyValueStats represents stats for a key-value combination
+type KeyValueStats struct {
+	Key         string  `json:"key"`
+	Value       string  `json:"value"`
+	Impressions int     `json:"impressions"`
+	Clicks      int     `json:"clicks"`
+	Viewable    int     `json:"viewable"`
+	CTR         float64 `json:"ctr"`
+}
+
+// LineItemStats represents stats for a line item
+type LineItemStats struct {
+	LineItemID   int     `json:"line_item_id"`
+	LineItemName string  `json:"line_item_name"`
+	CampaignName string  `json:"campaign_name"`
+	Impressions  int     `json:"impressions"`
+	Clicks       int     `json:"clicks"`
+	Viewable     int     `json:"viewable"`
+	CTR          float64 `json:"ctr"`
+}
+
+// GetKeyValueReport returns stats grouped by a specific key
+func (s *PostgresStore) GetKeyValueReport(ctx context.Context, key string, startDate, endDate time.Time) ([]KeyValueStats, error) {
+	var columnName string
+	switch key {
+	case "country":
+		columnName = "country"
+	case "section":
+		columnName = "section"
+	case "platform":
+		columnName = "platform"
+	default:
+		columnName = "country"
+	}
+
+	query := `
+		SELECT
+			COALESCE(` + columnName + `, 'unknown') as value,
+			COALESCE(SUM(CASE WHEN event_type = 'impression' THEN 1 ELSE 0 END), 0) as impressions,
+			COALESCE(SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END), 0) as clicks,
+			COALESCE(SUM(CASE WHEN event_type = 'viewable' THEN 1 ELSE 0 END), 0) as viewable
+		FROM events
+		WHERE created_at >= $1 AND created_at < $2
+		GROUP BY ` + columnName + `
+		ORDER BY impressions DESC
+	`
+
+	rows, err := s.pool.Query(ctx, query, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var stats []KeyValueStats
+	for rows.Next() {
+		var s KeyValueStats
+		s.Key = key
+		if err := rows.Scan(&s.Value, &s.Impressions, &s.Clicks, &s.Viewable); err != nil {
+			return nil, err
+		}
+		if s.Impressions > 0 {
+			s.CTR = float64(s.Clicks) / float64(s.Impressions) * 100
+		}
+		stats = append(stats, s)
+	}
+	return stats, nil
+}
+
+// GetLineItemReport returns stats grouped by line item
+func (s *PostgresStore) GetLineItemReport(ctx context.Context, startDate, endDate time.Time) ([]LineItemStats, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT
+			li.id,
+			li.name,
+			c.name as campaign_name,
+			COALESCE(SUM(CASE WHEN e.event_type = 'impression' THEN 1 ELSE 0 END), 0) as impressions,
+			COALESCE(SUM(CASE WHEN e.event_type = 'click' THEN 1 ELSE 0 END), 0) as clicks,
+			COALESCE(SUM(CASE WHEN e.event_type = 'viewable' THEN 1 ELSE 0 END), 0) as viewable
+		FROM line_items li
+		JOIN campaigns c ON li.campaign_id = c.id
+		LEFT JOIN events e ON e.line_item_id = li.id AND e.created_at >= $1 AND e.created_at < $2
+		GROUP BY li.id, li.name, c.name
+		ORDER BY impressions DESC
+	`, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var stats []LineItemStats
+	for rows.Next() {
+		var s LineItemStats
+		if err := rows.Scan(&s.LineItemID, &s.LineItemName, &s.CampaignName, &s.Impressions, &s.Clicks, &s.Viewable); err != nil {
+			return nil, err
+		}
+		if s.Impressions > 0 {
+			s.CTR = float64(s.Clicks) / float64(s.Impressions) * 100
+		}
+		stats = append(stats, s)
+	}
+	return stats, nil
+}
+
+// ExportRow represents a row in the export
+type ExportRow struct {
+	Date         string `json:"date"`
+	CampaignName string `json:"campaign_name"`
+	LineItemName string `json:"line_item_name"`
+	Country      string `json:"country"`
+	Section      string `json:"section"`
+	Platform     string `json:"platform"`
+	Impressions  int    `json:"impressions"`
+	Clicks       int    `json:"clicks"`
+	Viewable     int    `json:"viewable"`
+	CTR          float64 `json:"ctr"`
+}
+
+// GetExportData returns detailed data for export
+func (s *PostgresStore) GetExportData(ctx context.Context, startDate, endDate time.Time, groupBy string) ([]ExportRow, error) {
+	var groupColumns, selectColumns string
+
+	switch groupBy {
+	case "daily":
+		groupColumns = "DATE(e.created_at), c.name, li.name"
+		selectColumns = "DATE(e.created_at) as date, c.name as campaign_name, li.name as line_item_name, '' as country, '' as section, '' as platform"
+	case "country":
+		groupColumns = "DATE(e.created_at), c.name, li.name, e.country"
+		selectColumns = "DATE(e.created_at) as date, c.name as campaign_name, li.name as line_item_name, COALESCE(e.country, '') as country, '' as section, '' as platform"
+	case "section":
+		groupColumns = "DATE(e.created_at), c.name, li.name, e.section"
+		selectColumns = "DATE(e.created_at) as date, c.name as campaign_name, li.name as line_item_name, '' as country, COALESCE(e.section, '') as section, '' as platform"
+	case "full":
+		groupColumns = "DATE(e.created_at), c.name, li.name, e.country, e.section, e.platform"
+		selectColumns = "DATE(e.created_at) as date, c.name as campaign_name, li.name as line_item_name, COALESCE(e.country, '') as country, COALESCE(e.section, '') as section, COALESCE(e.platform, '') as platform"
+	default:
+		groupColumns = "DATE(e.created_at), c.name, li.name"
+		selectColumns = "DATE(e.created_at) as date, c.name as campaign_name, li.name as line_item_name, '' as country, '' as section, '' as platform"
+	}
+
+	query := `
+		SELECT
+			` + selectColumns + `,
+			COALESCE(SUM(CASE WHEN e.event_type = 'impression' THEN 1 ELSE 0 END), 0) as impressions,
+			COALESCE(SUM(CASE WHEN e.event_type = 'click' THEN 1 ELSE 0 END), 0) as clicks,
+			COALESCE(SUM(CASE WHEN e.event_type = 'viewable' THEN 1 ELSE 0 END), 0) as viewable
+		FROM events e
+		JOIN line_items li ON e.line_item_id = li.id
+		JOIN campaigns c ON li.campaign_id = c.id
+		WHERE e.created_at >= $1 AND e.created_at < $2
+		GROUP BY ` + groupColumns + `
+		ORDER BY date DESC, impressions DESC
+	`
+
+	rows, err := s.pool.Query(ctx, query, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var data []ExportRow
+	for rows.Next() {
+		var r ExportRow
+		var date time.Time
+		if err := rows.Scan(&date, &r.CampaignName, &r.LineItemName, &r.Country, &r.Section, &r.Platform, &r.Impressions, &r.Clicks, &r.Viewable); err != nil {
+			return nil, err
+		}
+		r.Date = date.Format("2006-01-02")
+		if r.Impressions > 0 {
+			r.CTR = float64(r.Clicks) / float64(r.Impressions) * 100
+		}
+		data = append(data, r)
+	}
+	return data, nil
 }

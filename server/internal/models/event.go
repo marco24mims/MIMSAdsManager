@@ -13,6 +13,7 @@ type Event struct {
 	Country      string    `json:"country"`
 	Platform     string    `json:"platform"`
 	AdUnit       string    `json:"ad_unit"`
+	Section      string    `json:"section"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 

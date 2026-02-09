@@ -106,11 +106,12 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 		// Increment frequency cap counter
 		h.freqCap.Increment(selectedLineItem.ID, userID)
 
-		// Build tracking URLs
+		// Build tracking URLs with key-value data
 		trackingBase := fmt.Sprintf("%s/v1", serverURL)
+		section := req.Targeting["section"]
 		tracking := models.Tracking{
-			Impression: fmt.Sprintf("%s/imp?id=%s&li=%d&c=%d&u=%s&p=%s&co=%s",
-				trackingBase, impressionID, selectedLineItem.ID, selectedCreative.ID, userID, req.Platform, req.Country),
+			Impression: fmt.Sprintf("%s/imp?id=%s&li=%d&c=%d&u=%s&p=%s&co=%s&sec=%s",
+				trackingBase, impressionID, selectedLineItem.ID, selectedCreative.ID, userID, req.Platform, req.Country, section),
 			Viewable: fmt.Sprintf("%s/view?id=%s&li=%d&c=%d&u=%s",
 				trackingBase, impressionID, selectedLineItem.ID, selectedCreative.ID, userID),
 			Click: fmt.Sprintf("%s/click?id=%s&li=%d&c=%d&u=%s&url=%s",

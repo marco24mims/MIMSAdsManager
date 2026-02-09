@@ -30,7 +30,12 @@ export default function LineItemDetail() {
 
   // Settings modal
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [editingSettings, setEditingSettings] = useState({ priority: 5, weight: 100 });
+  const [editingSettings, setEditingSettings] = useState({
+    priority: 5,
+    weight: 100,
+    frequency_cap: 0,
+    frequency_cap_period: 'day'
+  });
 
   // Targeting modal
   const [showTargetingModal, setShowTargetingModal] = useState(false);
@@ -92,7 +97,12 @@ export default function LineItemDetail() {
 
   function openSettingsModal() {
     if (!lineItem) return;
-    setEditingSettings({ priority: lineItem.priority, weight: lineItem.weight || 100 });
+    setEditingSettings({
+      priority: lineItem.priority,
+      weight: lineItem.weight || 100,
+      frequency_cap: lineItem.frequency_cap || 0,
+      frequency_cap_period: lineItem.frequency_cap_period || 'day'
+    });
     setShowSettingsModal(true);
   }
 
@@ -102,6 +112,8 @@ export default function LineItemDetail() {
       const updated = await updateLineItem(lineItem.id, {
         priority: editingSettings.priority,
         weight: editingSettings.weight,
+        frequency_cap: editingSettings.frequency_cap,
+        frequency_cap_period: editingSettings.frequency_cap_period,
       });
       setLineItem(updated);
       setShowSettingsModal(false);
@@ -683,6 +695,31 @@ export default function LineItemDetail() {
                 <p className="mt-1 text-xs text-gray-500">
                   When multiple line items have the same priority, weight determines rotation ratio.
                   E.g., weight 200 vs 100 means 2:1 serving ratio.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Frequency Cap</label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingSettings.frequency_cap}
+                    onChange={(e) => setEditingSettings({ ...editingSettings, frequency_cap: Number(e.target.value) })}
+                    className="flex-1 border border-gray-300 rounded-md px-3 py-2"
+                    placeholder="0 = unlimited"
+                  />
+                  <select
+                    value={editingSettings.frequency_cap_period}
+                    onChange={(e) => setEditingSettings({ ...editingSettings, frequency_cap_period: e.target.value })}
+                    className="border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    <option value="day">per day</option>
+                    <option value="hour">per hour</option>
+                    <option value="session">per session</option>
+                  </select>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Maximum impressions per user. Set to 0 for unlimited.
                 </p>
               </div>
             </div>

@@ -9,14 +9,18 @@ import (
 
 // InMemoryCache provides in-memory caching for active campaigns
 type InMemoryCache struct {
-	mu        sync.RWMutex
-	lineItems []models.LineItem
+	mu           sync.RWMutex
+	lineItems    []models.LineItem
+	adUnits      []models.AdUnit
+	adUnitByCode map[string]models.AdUnit
 }
 
 // NewInMemoryCache creates a new InMemoryCache
 func NewInMemoryCache() *InMemoryCache {
 	return &InMemoryCache{
-		lineItems: make([]models.LineItem, 0),
+		lineItems:    make([]models.LineItem, 0),
+		adUnits:      make([]models.AdUnit, 0),
+		adUnitByCode: make(map[string]models.AdUnit),
 	}
 }
 
@@ -27,9 +31,20 @@ func (c *InMemoryCache) LoadCampaigns(ctx context.Context, store *PostgresStore)
 		return err
 	}
 
+	// Load ad units
+	adUnits, err := store.ListAdUnits(ctx)
+	if err != nil {
+		return err
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.lineItems = items
+	c.adUnits = adUnits
+	c.adUnitByCode = make(map[string]models.AdUnit)
+	for _, au := range adUnits {
+		c.adUnitByCode[au.Code] = au
+	}
 	return nil
 }
 
@@ -47,4 +62,15 @@ func (c *InMemoryCache) GetActiveLineItems() []models.LineItem {
 // Refresh reloads the cache
 func (c *InMemoryCache) Refresh(ctx context.Context, store *PostgresStore) error {
 	return c.LoadCampaigns(ctx, store)
+}
+
+// GetAdUnitByCode returns an ad unit by its code
+func (c *InMemoryCache) GetAdUnitByCode(code string) *models.AdUnit {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if au, ok := c.adUnitByCode[code]; ok {
+		return &au
+	}
+	return nil
 }

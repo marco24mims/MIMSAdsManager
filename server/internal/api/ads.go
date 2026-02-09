@@ -77,7 +77,7 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 
 		// Filter by ad unit if provided
 		if slot.AdUnit != "" {
-			matched = filterByAdUnit(matched, slot.AdUnit)
+			matched = h.filterByAdUnit(matched, slot.AdUnit)
 		}
 
 		// Sort by priority (highest first)
@@ -198,8 +198,30 @@ func selectWeightedRandom(lineItems []models.LineItem) *models.LineItem {
 }
 
 // filterByAdUnit filters line items by ad unit code
-func filterByAdUnit(lineItems []models.LineItem, adUnitCode string) []models.LineItem {
-	// For now, just return all items - ad unit filtering requires looking up ad unit ID by code
-	// This is a simplified version - full implementation would query ad_units table
-	return lineItems
+func (h *AdsHandler) filterByAdUnit(lineItems []models.LineItem, adUnitCode string) []models.LineItem {
+	// Look up ad unit ID by code from cache
+	adUnit := h.cache.GetAdUnitByCode(adUnitCode)
+	if adUnit == nil {
+		// Ad unit not found, return all items (no filtering)
+		return lineItems
+	}
+
+	var filtered []models.LineItem
+	for _, li := range lineItems {
+		// If line item has no ad unit restrictions, it can serve everywhere
+		if len(li.AdUnitIDs) == 0 {
+			filtered = append(filtered, li)
+			continue
+		}
+
+		// Check if this ad unit is in the line item's allowed ad units
+		for _, allowedID := range li.AdUnitIDs {
+			if allowedID == adUnit.ID {
+				filtered = append(filtered, li)
+				break
+			}
+		}
+	}
+
+	return filtered
 }

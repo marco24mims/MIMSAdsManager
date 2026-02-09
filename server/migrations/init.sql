@@ -95,10 +95,12 @@ CREATE INDEX idx_creatives_line_item ON creatives(line_item_id);
 CREATE INDEX idx_targeting_rules_line_item ON targeting_rules(line_item_id);
 CREATE INDEX idx_ad_units_code ON ad_units(code);
 
--- Insert sample Ad Units
+-- Insert sample Ad Units (codes match demo page options)
 INSERT INTO ad_units (code, name, description, sizes) VALUES
-    ('leaderboard', 'Leaderboard Banner', 'Top of page banner', '[[728, 90]]'),
-    ('sidebar', 'Sidebar Rectangle', 'Sidebar ad unit', '[[300, 250]]'),
+    ('homepage_leaderboard', 'Homepage Leaderboard', 'Leaderboard banner on homepage', '[[728, 90]]'),
+    ('article_leaderboard', 'Article Leaderboard', 'Leaderboard banner on article pages', '[[728, 90]]'),
+    ('homepage_sidebar', 'Homepage Sidebar', 'Sidebar rectangle on homepage', '[[300, 250]]'),
+    ('article_sidebar', 'Article Sidebar', 'Sidebar rectangle on article pages', '[[300, 250]]'),
     ('mobile_banner', 'Mobile Banner', 'Mobile leaderboard', '[[320, 50], [320, 100]]');
 
 -- Insert sample Campaigns
@@ -109,14 +111,26 @@ INSERT INTO campaigns (name, status) VALUES
 -- Insert sample Line Items with weights for rotation
 INSERT INTO line_items (campaign_id, name, priority, weight, frequency_cap, status) VALUES
     (1, 'Homepage Banner', 10, 100, 3, 'active'),
-    (1, 'News Section Banner', 10, 100, 5, 'active'),
-    (2, 'Sports Section Ad', 5, 50, 0, 'active');
+    (1, 'News Section Banner', 10, 150, 5, 'active'),
+    (2, 'Sports Section Ad', 5, 50, 0, 'active'),
+    (2, 'Article Only Ad', 10, 100, 0, 'active');
 
 -- Link line items to ad units
+-- Homepage Banner (id=1) targets homepage ad units only
 INSERT INTO line_item_ad_units (line_item_id, ad_unit_id) VALUES
-    (1, 1), (1, 2),  -- Homepage Banner targets leaderboard and sidebar
-    (2, 1), (2, 2),  -- News Banner targets leaderboard and sidebar
-    (3, 1), (3, 2);  -- Sports Ad targets leaderboard and sidebar
+    (1, 1), (1, 3);  -- homepage_leaderboard and homepage_sidebar
+
+-- News Banner (id=2) targets all ad units (homepage and article)
+INSERT INTO line_item_ad_units (line_item_id, ad_unit_id) VALUES
+    (2, 1), (2, 2), (2, 3), (2, 4);  -- all leaderboards and sidebars
+
+-- Sports Ad (id=3) targets all ad units
+INSERT INTO line_item_ad_units (line_item_id, ad_unit_id) VALUES
+    (3, 1), (3, 2), (3, 3), (3, 4);  -- all leaderboards and sidebars
+
+-- Article Only Ad (id=4) targets article ad units only
+INSERT INTO line_item_ad_units (line_item_id, ad_unit_id) VALUES
+    (4, 2), (4, 4);  -- article_leaderboard and article_sidebar
 
 -- Insert Targeting Rules
 INSERT INTO targeting_rules (line_item_id, key, operator, values) VALUES
@@ -125,7 +139,9 @@ INSERT INTO targeting_rules (line_item_id, key, operator, values) VALUES
     (2, 'section', 'IN', '["news", "home"]'),
     (2, 'country', 'IN', '["sg", "my", "ph", "id"]'),
     (3, 'section', 'IN', '["sports", "entertainment"]'),
-    (3, 'country', 'IN', '["sg", "my", "ph", "id"]');
+    (3, 'country', 'IN', '["sg", "my", "ph", "id"]'),
+    (4, 'section', 'IN', '["news", "entertainment"]'),
+    (4, 'country', 'IN', '["sg", "my"]');
 
 -- Insert sample Creatives with reliable placeholder images
 INSERT INTO creatives (line_item_id, name, width, height, image_url, click_url) VALUES
@@ -134,4 +150,6 @@ INSERT INTO creatives (line_item_id, name, width, height, image_url, click_url) 
     (2, 'News Leaderboard', 728, 90, 'https://picsum.photos/728/90?random=3', 'https://example.com/landing2'),
     (2, 'News Rectangle', 300, 250, 'https://picsum.photos/300/250?random=4', 'https://example.com/landing2'),
     (3, 'Sports Leaderboard', 728, 90, 'https://picsum.photos/728/90?random=5', 'https://example.com/landing3'),
-    (3, 'Sports Rectangle', 300, 250, 'https://picsum.photos/300/250?random=6', 'https://example.com/landing3');
+    (3, 'Sports Rectangle', 300, 250, 'https://picsum.photos/300/250?random=6', 'https://example.com/landing3'),
+    (4, 'Article Only Leaderboard', 728, 90, 'https://picsum.photos/728/90?random=7', 'https://example.com/landing4'),
+    (4, 'Article Only Rectangle', 300, 250, 'https://picsum.photos/300/250?random=8', 'https://example.com/landing4');

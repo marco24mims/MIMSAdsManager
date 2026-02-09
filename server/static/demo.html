@@ -224,6 +224,22 @@
                         <option value="id">Indonesia</option>
                     </select>
                 </div>
+                <div class="control-group">
+                    <label>Ad Unit (Leaderboard):</label>
+                    <select id="adunit-leaderboard">
+                        <option value="">Any</option>
+                        <option value="homepage_leaderboard" selected>homepage_leaderboard</option>
+                        <option value="article_leaderboard">article_leaderboard</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Ad Unit (Sidebar):</label>
+                    <select id="adunit-sidebar">
+                        <option value="">Any</option>
+                        <option value="homepage_sidebar" selected>homepage_sidebar</option>
+                        <option value="article_sidebar">article_sidebar</option>
+                    </select>
+                </div>
                 <button onclick="loadAds()">Load Ads</button>
                 <button onclick="refreshAds()" class="secondary">Refresh</button>
             </div>
@@ -317,18 +333,30 @@
             // Get targeting values
             const section = document.getElementById('section').value;
             const country = document.getElementById('country').value;
+            const adUnitLeaderboard = document.getElementById('adunit-leaderboard').value;
+            const adUnitSidebar = document.getElementById('adunit-sidebar').value;
 
             log(`Setting targeting: section=${section}, country=${country}`);
+            if (adUnitLeaderboard) log(`Leaderboard ad unit: ${adUnitLeaderboard}`);
+            if (adUnitSidebar) log(`Sidebar ad unit: ${adUnitSidebar}`);
 
             // Set targeting
             MIMSAds.clearTargeting();
             MIMSAds.setTargeting('section', section);
             MIMSAds.setTargeting('country', country);
 
-            // Define ad slots
+            // Define ad slots with ad unit codes
             log('Defining ad slots...');
-            MIMSAds.defineSlot('leaderboard-slot', { width: 728, height: 90 });
-            MIMSAds.defineSlot('sidebar-slot', { width: 300, height: 250 });
+            MIMSAds.defineSlot('leaderboard-slot', {
+                width: 728,
+                height: 90,
+                adUnit: adUnitLeaderboard
+            });
+            MIMSAds.defineSlot('sidebar-slot', {
+                width: 300,
+                height: 250,
+                adUnit: adUnitSidebar
+            });
 
             // Display ads
             log('Requesting ads from server...');
@@ -345,10 +373,24 @@
 
             const section = document.getElementById('section').value;
             const country = document.getElementById('country').value;
+            const adUnitLeaderboard = document.getElementById('adunit-leaderboard').value;
+            const adUnitSidebar = document.getElementById('adunit-sidebar').value;
 
             MIMSAds.clearTargeting();
             MIMSAds.setTargeting('section', section);
             MIMSAds.setTargeting('country', country);
+
+            // Redefine slots with current ad unit values
+            MIMSAds.defineSlot('leaderboard-slot', {
+                width: 728,
+                height: 90,
+                adUnit: adUnitLeaderboard
+            });
+            MIMSAds.defineSlot('sidebar-slot', {
+                width: 300,
+                height: 250,
+                adUnit: adUnitSidebar
+            });
 
             MIMSAds.refresh().then(() => {
                 log('Ads refreshed successfully!', 'success');

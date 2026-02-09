@@ -13,6 +13,7 @@ interface SlotConfig {
   width: number;
   height: number;
   elementId?: string;
+  adUnit?: string;
 }
 
 interface AdResult {
@@ -138,6 +139,7 @@ const MIMSAds = (function() {
         id,
         width: cfg.width,
         height: cfg.height,
+        ad_unit: cfg.adUnit || '',
       }));
 
       const targetingObj: Record<string, string> = {};

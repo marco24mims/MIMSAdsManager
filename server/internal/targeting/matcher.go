@@ -107,3 +107,44 @@ func (m *Matcher) SelectCreative(lineItem models.LineItem, width, height int) *m
 	}
 	return nil
 }
+
+// MatchResponsive filters line items that have at least one active creative with width <= maxWidth
+func (m *Matcher) MatchResponsive(targeting map[string]string, lineItems []models.LineItem, maxWidth int) []models.LineItem {
+	var matched []models.LineItem
+
+	for _, li := range lineItems {
+		hasMatchingCreative := false
+		for _, creative := range li.Creatives {
+			if creative.Width <= maxWidth && creative.Status == "active" {
+				hasMatchingCreative = true
+				break
+			}
+		}
+		if !hasMatchingCreative {
+			continue
+		}
+
+		if m.matchesTargeting(targeting, li.TargetingRules) {
+			matched = append(matched, li)
+		}
+	}
+
+	return matched
+}
+
+// SelectCreativeResponsive picks the largest-area creative that fits within maxWidth
+func (m *Matcher) SelectCreativeResponsive(lineItem models.LineItem, maxWidth int) *models.Creative {
+	var best *models.Creative
+	bestArea := 0
+
+	for i, creative := range lineItem.Creatives {
+		if creative.Width <= maxWidth && creative.Status == "active" {
+			area := creative.Width * creative.Height
+			if area > bestArea {
+				bestArea = area
+				best = &lineItem.Creatives[i]
+			}
+		}
+	}
+	return best
+}

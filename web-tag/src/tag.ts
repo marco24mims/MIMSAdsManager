@@ -10,8 +10,8 @@
  */
 
 interface SlotConfig {
-  width: number;
-  height: number;
+  width?: number;
+  height?: number;
   elementId?: string;
   adUnit?: string;
 }
@@ -135,12 +135,26 @@ const MIMSAds = (function() {
     }
 
     try {
-      const slotsArray = Array.from(slots.entries()).map(([id, cfg]) => ({
-        id,
-        width: cfg.width,
-        height: cfg.height,
-        ad_unit: cfg.adUnit || '',
-      }));
+      const slotsArray = Array.from(slots.entries()).map(([id, cfg]) => {
+        const isResponsive = !cfg.width && !cfg.height;
+        if (isResponsive) {
+          const el = document.getElementById(cfg.elementId || id);
+          const maxWidth = el ? el.offsetWidth : window.innerWidth;
+          return {
+            id,
+            width: 0,
+            height: 0,
+            max_width: maxWidth,
+            ad_unit: cfg.adUnit || '',
+          };
+        }
+        return {
+          id,
+          width: cfg.width || 0,
+          height: cfg.height || 0,
+          ad_unit: cfg.adUnit || '',
+        };
+      });
 
       const targetingObj: Record<string, string> = {};
       targeting.forEach((value, key) => {
@@ -194,15 +208,26 @@ const MIMSAds = (function() {
     // Store the ad for reference
     displayedAds.set(ad.slot_id, ad);
 
+    // Determine if this slot is responsive (no explicit w/h defined)
+    const isResponsive = !slotConfig.width && !slotConfig.height;
+
     // Create ad container
     const adContainer = document.createElement('div');
     adContainer.id = `mims-ad-${ad.slot_id}`;
-    adContainer.style.cssText = `
-      width: ${ad.width}px;
-      height: ${ad.height}px;
-      position: relative;
-      overflow: hidden;
-    `;
+    if (isResponsive) {
+      adContainer.style.cssText = `
+        max-width: 100%;
+        position: relative;
+        overflow: hidden;
+      `;
+    } else {
+      adContainer.style.cssText = `
+        width: ${ad.width}px;
+        height: ${ad.height}px;
+        position: relative;
+        overflow: hidden;
+      `;
+    }
 
     // Create clickable link
     const link = document.createElement('a');
@@ -215,12 +240,21 @@ const MIMSAds = (function() {
     const img = document.createElement('img');
     img.src = ad.image_url;
     img.alt = 'Advertisement';
-    img.style.cssText = `
-      width: ${ad.width}px;
-      height: ${ad.height}px;
-      display: block;
-      border: none;
-    `;
+    if (isResponsive) {
+      img.style.cssText = `
+        max-width: 100%;
+        height: auto;
+        display: block;
+        border: none;
+      `;
+    } else {
+      img.style.cssText = `
+        width: ${ad.width}px;
+        height: ${ad.height}px;
+        display: block;
+        border: none;
+      `;
+    }
 
     // Assemble elements
     link.appendChild(img);

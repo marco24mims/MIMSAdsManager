@@ -282,6 +282,19 @@
         </div>
     </div>
 
+        <!-- Responsive Ad Slot -->
+        <div class="section">
+            <h2>Responsive Ad (auto-sized)</h2>
+            <p style="color: #6c757d; font-size: 14px; margin-bottom: 12px;">
+                This slot has no fixed width/height. It measures its container and the server picks the best-fitting creative.
+                Try resizing the browser window and refreshing to see different sizes served.
+            </p>
+            <div id="responsive-slot" class="ad-slot" style="width: 100%; min-height: 90px; border: 2px dashed #dee2e6;">
+                <span class="ad-slot-label">Responsive ad will appear here</span>
+            </div>
+        </div>
+    </div>
+
     <footer>
         MIMS Ad Manager POC &copy; 2024 | <a href="http://10.50.10.65:5000" style="color: #3B82F6;">Dashboard</a>
     </footer>
@@ -336,6 +349,7 @@
             log('Defining ad slots...');
             MIMSAds.defineSlot('leaderboard-slot', { width: 728, height: 90 });
             MIMSAds.defineSlot('sidebar-slot', { width: 300, height: 250 });
+            MIMSAds.defineSlot('responsive-slot', { adUnit: 'homepage_leaderboard' });
 
             // Display ads
             log('Requesting ads from server...');

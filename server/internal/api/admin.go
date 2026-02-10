@@ -583,3 +583,42 @@ func (h *AdminHandler) AddTargetingKeyValues(c *fiber.Ctx) error {
 
 	return c.JSON(targetingKey)
 }
+
+// UpdateTargetingKeyValues replaces all values for a targeting key
+func (h *AdminHandler) UpdateTargetingKeyValues(c *fiber.Ctx) error {
+	key := c.Params("key")
+	if key == "" {
+		return NewBadRequest("Key is required")
+	}
+
+	var req struct {
+		Values []string `json:"values"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return NewBadRequest("Invalid request body")
+	}
+
+	targetingKey, err := h.store.UpdateTargetingKeyValues(c.Context(), key, req.Values)
+	if err != nil {
+		return NewInternalError("Failed to update targeting key values")
+	}
+	if targetingKey == nil {
+		return NewNotFound("Targeting key not found")
+	}
+
+	return c.JSON(targetingKey)
+}
+
+// DeleteTargetingKey deletes a targeting key
+func (h *AdminHandler) DeleteTargetingKey(c *fiber.Ctx) error {
+	key := c.Params("key")
+	if key == "" {
+		return NewBadRequest("Key is required")
+	}
+
+	if err := h.store.DeleteTargetingKey(c.Context(), key); err != nil {
+		return NewInternalError("Failed to delete targeting key")
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}

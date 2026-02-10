@@ -174,6 +174,29 @@ export default function AdUnits() {
 </script>`;
   }
 
+  function getWebResponsiveCode(unit: AdUnit) {
+    const serverUrl = getServerUrl();
+    return `<!-- MIMS Ad Manager - ${unit.name} (Responsive) -->
+<!-- The ad slot will auto-detect the container width -->
+<!-- and the server will pick the best-fitting creative size. -->
+<div id="${unit.code}" style="width: 100%;"></div>
+
+<script src="${serverUrl}/static/tag.js"></script>
+<script>
+  MIMSAds.init({ serverUrl: '${serverUrl}' });
+
+  // No width/height needed - the tag measures the container
+  MIMSAds.defineSlot('${unit.code}', {
+    adUnit: '${unit.code}'
+  });
+
+  // Optional: Set targeting key-values for this page
+  MIMSAds.setTargeting('section', 'news');
+
+  MIMSAds.display();
+</script>`;
+  }
+
   function getWebMultiSlotCode(unit: AdUnit) {
     const serverUrl = getServerUrl();
     const slots = (unit.sizes || [[728, 90]]).map((size, i) => {
@@ -723,6 +746,29 @@ struct AdBannerView: UIViewControllerRepresentable {
                       <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto whitespace-pre">{getWebMultiSlotCode(selectedUnit)}</pre>
                     </div>
                   )}
+
+                  {/* Responsive code */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900">
+                        Responsive (Auto-Size)
+                      </h4>
+                      <button
+                        onClick={() => copyToClipboard(getWebResponsiveCode(selectedUnit), 'web-responsive')}
+                        className={`px-3 py-1 text-sm rounded ${
+                          copiedField === 'web-responsive'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {copiedField === 'web-responsive' ? 'Copied!' : 'Copy Code'}
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-2">
+                      No fixed dimensions -- the tag measures the container width and the server picks the best-fitting creative.
+                    </p>
+                    <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto whitespace-pre">{getWebResponsiveCode(selectedUnit)}</pre>
+                  </div>
 
                   <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
                     <strong>Targeting:</strong> Use <code className="bg-gray-200 px-1 rounded">MIMSAds.setTargeting(key, value)</code> to pass page-level

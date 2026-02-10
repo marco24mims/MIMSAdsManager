@@ -362,4 +362,15 @@ export async function addTargetingKeyValues(key: string, values: string[]): Prom
   });
 }
 
+export async function updateTargetingKeyValues(key: string, values: string[]): Promise<TargetingKey> {
+  return fetchAPI<TargetingKey>(`/api/targeting-keys/${encodeURIComponent(key)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ values }),
+  });
+}
+
+export async function deleteTargetingKey(key: string): Promise<void> {
+  return fetchAPI<void>(`/api/targeting-keys/${encodeURIComponent(key)}`, { method: 'DELETE' });
+}
+
 export type { Campaign, LineItem, TargetingRule, Creative, ReportSummary, DailyStats, AdUnit, TargetingKey };

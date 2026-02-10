@@ -281,6 +281,24 @@ export default function LineItemDetail() {
     }
   }
 
+  // Check which ad unit sizes match the line item's creatives
+  function getAdUnitSizeMatch(unit: AdUnit): { size: number[]; matched: boolean }[] {
+    if (!unit.sizes || unit.sizes.length === 0) return [];
+    return unit.sizes.map((size) => {
+      const matched = creatives.some(
+        (c) => c.width === size[0] && c.height === size[1]
+      );
+      return { size, matched };
+    });
+  }
+
+  function isAdUnitDisabled(unit: AdUnit): boolean {
+    // If no creatives yet, allow all (user may add creatives later)
+    if (creatives.length === 0) return false;
+    const matches = getAdUnitSizeMatch(unit);
+    return matches.length > 0 && !matches.some((m) => m.matched);
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -397,27 +415,55 @@ export default function LineItemDetail() {
               Select which ad units this line item can serve to. If none selected, it can serve to all ad units.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {adUnits.map((unit) => (
-                <label
-                  key={unit.id}
-                  className={`flex items-center p-3 rounded-lg border cursor-pointer transition-colors ${
-                    selectedAdUnitIds.includes(unit.id)
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedAdUnitIds.includes(unit.id)}
-                    onChange={() => handleAdUnitToggle(unit.id)}
-                    className="h-4 w-4 text-blue-600 rounded"
-                  />
-                  <div className="ml-3">
-                    <div className="text-sm font-medium text-gray-900">{unit.name}</div>
-                    <div className="text-xs text-gray-500">{unit.code}</div>
-                  </div>
-                </label>
-              ))}
+              {adUnits.map((unit) => {
+                const disabled = isAdUnitDisabled(unit);
+                const sizeMatches = getAdUnitSizeMatch(unit);
+                return (
+                  <label
+                    key={unit.id}
+                    className={`flex items-start p-3 rounded-lg border transition-colors ${
+                      disabled
+                        ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-70'
+                        : selectedAdUnitIds.includes(unit.id)
+                          ? 'border-blue-500 bg-blue-50 cursor-pointer'
+                          : 'border-gray-200 hover:border-gray-300 cursor-pointer'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedAdUnitIds.includes(unit.id)}
+                      onChange={() => handleAdUnitToggle(unit.id)}
+                      disabled={disabled}
+                      className="h-4 w-4 text-blue-600 rounded mt-0.5"
+                    />
+                    <div className="ml-3">
+                      <div className="text-sm font-medium text-gray-900">{unit.name}</div>
+                      <div className="text-xs text-gray-500">{unit.code}</div>
+                      {sizeMatches.length > 0 && creatives.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {sizeMatches.map(({ size, matched }) => (
+                            <span
+                              key={`${size[0]}x${size[1]}`}
+                              className={`inline-flex items-center text-xs px-1.5 py-0.5 rounded ${
+                                matched
+                                  ? 'bg-green-100 text-green-700'
+                                  : 'bg-red-100 text-red-700'
+                              }`}
+                            >
+                              {matched ? '\u2713' : '\u2717'} {size[0]}x{size[1]}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {disabled && (
+                        <div className="text-xs text-red-600 mt-1">
+                          No creatives match this ad unit's sizes
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
             </div>
           </div>
         )}

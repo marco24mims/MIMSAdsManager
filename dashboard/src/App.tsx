@@ -4,6 +4,7 @@ import CampaignDetail from './pages/CampaignDetail';
 import LineItemDetail from './pages/LineItemDetail';
 import Reports from './pages/Reports';
 import AdUnits from './pages/AdUnits';
+import TargetingKeys from './pages/TargetingKeys';
 
 function App() {
   const location = useLocation();
@@ -11,6 +12,7 @@ function App() {
   const navItems = [
     { path: '/', label: 'Campaigns' },
     { path: '/ad-units', label: 'Ad Units' },
+    { path: '/targeting-keys', label: 'Targeting Keys' },
     { path: '/reports', label: 'Reports' },
   ];
 
@@ -49,6 +51,7 @@ function App() {
           <Route path="/campaigns/:id" element={<CampaignDetail />} />
           <Route path="/line-items/:id" element={<LineItemDetail />} />
           <Route path="/ad-units" element={<AdUnits />} />
+          <Route path="/targeting-keys" element={<TargetingKeys />} />
           <Route path="/reports" element={<Reports />} />
         </Routes>
       </main>

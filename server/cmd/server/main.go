@@ -163,6 +163,8 @@ func main() {
 	apiGroup.Get("/targeting-keys", adminHandler.ListTargetingKeys)
 	apiGroup.Get("/targeting-keys/:key", adminHandler.GetTargetingKeyValues)
 	apiGroup.Post("/targeting-keys/:key", adminHandler.AddTargetingKeyValues)
+	apiGroup.Put("/targeting-keys/:key", adminHandler.UpdateTargetingKeyValues)
+	apiGroup.Delete("/targeting-keys/:key", adminHandler.DeleteTargetingKey)
 
 	// Reports
 	apiGroup.Get("/reports/summary", reportsHandler.GetSummary)

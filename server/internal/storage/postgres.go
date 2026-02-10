@@ -962,3 +962,30 @@ func (s *PostgresStore) AddTargetingKeyValues(ctx context.Context, key string, v
 	_, err := s.UpsertTargetingKey(ctx, key, values)
 	return err
 }
+
+// UpdateTargetingKeyValues replaces all values for a targeting key
+func (s *PostgresStore) UpdateTargetingKeyValues(ctx context.Context, key string, values []string) (*models.TargetingKey, error) {
+	valuesJSON, _ := json.Marshal(values)
+	var k models.TargetingKey
+	var valuesOut []byte
+	err := s.pool.QueryRow(ctx, `
+		UPDATE targeting_keys
+		SET values = $2, updated_at = NOW()
+		WHERE key = $1
+		RETURNING id, key, values, created_at, updated_at
+	`, key, valuesJSON).Scan(&k.ID, &k.Key, &valuesOut, &k.CreatedAt, &k.UpdatedAt)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal(valuesOut, &k.Values)
+	return &k, nil
+}
+
+// DeleteTargetingKey deletes a targeting key
+func (s *PostgresStore) DeleteTargetingKey(ctx context.Context, key string) error {
+	_, err := s.pool.Exec(ctx, `DELETE FROM targeting_keys WHERE key = $1`, key)
+	return err
+}

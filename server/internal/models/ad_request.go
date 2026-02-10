@@ -11,10 +11,11 @@ type AdRequest struct {
 
 // AdSlot represents a single ad slot in a request
 type AdSlot struct {
-	ID     string `json:"id"`
-	Width  int    `json:"width"`
-	Height int    `json:"height"`
-	AdUnit string `json:"ad_unit,omitempty"`
+	ID       string `json:"id"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	AdUnit   string `json:"ad_unit,omitempty"`
+	MaxWidth int    `json:"max_width,omitempty"`
 }
 
 // AdResponse represents the response containing matched ads

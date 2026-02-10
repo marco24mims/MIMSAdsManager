@@ -72,8 +72,15 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 
 	// Process each slot
 	for _, slot := range req.Slots {
+		isResponsive := slot.Width == 0 && slot.Height == 0 && slot.MaxWidth > 0
+
 		// Match line items based on targeting and ad unit
-		matched := h.matcher.Match(req.Targeting, lineItems, slot.Width, slot.Height)
+		var matched []models.LineItem
+		if isResponsive {
+			matched = h.matcher.MatchResponsive(req.Targeting, lineItems, slot.MaxWidth)
+		} else {
+			matched = h.matcher.Match(req.Targeting, lineItems, slot.Width, slot.Height)
+		}
 
 		// Filter by ad unit if provided
 		if slot.AdUnit != "" {
@@ -104,7 +111,12 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 		}
 
 		// Select creative
-		selectedCreative := h.matcher.SelectCreative(*selectedLineItem, slot.Width, slot.Height)
+		var selectedCreative *models.Creative
+		if isResponsive {
+			selectedCreative = h.matcher.SelectCreativeResponsive(*selectedLineItem, slot.MaxWidth)
+		} else {
+			selectedCreative = h.matcher.SelectCreative(*selectedLineItem, slot.Width, slot.Height)
+		}
 		if selectedCreative == nil {
 			continue
 		}

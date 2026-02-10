@@ -109,13 +109,14 @@ func (m *Matcher) SelectCreative(lineItem models.LineItem, width, height int) *m
 }
 
 // MatchResponsive filters line items that have at least one active creative with width <= maxWidth
-func (m *Matcher) MatchResponsive(targeting map[string]string, lineItems []models.LineItem, maxWidth int) []models.LineItem {
+// If allowedSizes is non-empty, only creatives matching one of those sizes are considered.
+func (m *Matcher) MatchResponsive(targeting map[string]string, lineItems []models.LineItem, maxWidth int, allowedSizes [][]int) []models.LineItem {
 	var matched []models.LineItem
 
 	for _, li := range lineItems {
 		hasMatchingCreative := false
 		for _, creative := range li.Creatives {
-			if creative.Width <= maxWidth && creative.Status == "active" {
+			if creative.Width <= maxWidth && creative.Status == "active" && m.sizeAllowed(creative.Width, creative.Height, allowedSizes) {
 				hasMatchingCreative = true
 				break
 			}
@@ -133,12 +134,13 @@ func (m *Matcher) MatchResponsive(targeting map[string]string, lineItems []model
 }
 
 // SelectCreativeResponsive picks the largest-area creative that fits within maxWidth
-func (m *Matcher) SelectCreativeResponsive(lineItem models.LineItem, maxWidth int) *models.Creative {
+// If allowedSizes is non-empty, only creatives matching one of those sizes are considered.
+func (m *Matcher) SelectCreativeResponsive(lineItem models.LineItem, maxWidth int, allowedSizes [][]int) *models.Creative {
 	var best *models.Creative
 	bestArea := 0
 
 	for i, creative := range lineItem.Creatives {
-		if creative.Width <= maxWidth && creative.Status == "active" {
+		if creative.Width <= maxWidth && creative.Status == "active" && m.sizeAllowed(creative.Width, creative.Height, allowedSizes) {
 			area := creative.Width * creative.Height
 			if area > bestArea {
 				bestArea = area
@@ -147,4 +149,18 @@ func (m *Matcher) SelectCreativeResponsive(lineItem models.LineItem, maxWidth in
 		}
 	}
 	return best
+}
+
+// sizeAllowed checks if a creative size matches the ad unit's allowed sizes.
+// If allowedSizes is empty, all sizes are allowed.
+func (m *Matcher) sizeAllowed(width, height int, allowedSizes [][]int) bool {
+	if len(allowedSizes) == 0 {
+		return true
+	}
+	for _, s := range allowedSizes {
+		if len(s) >= 2 && s[0] == width && s[1] == height {
+			return true
+		}
+	}
+	return false
 }

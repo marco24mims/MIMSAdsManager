@@ -74,10 +74,18 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 	for _, slot := range req.Slots {
 		isResponsive := slot.Width == 0 && slot.Height == 0 && slot.MaxWidth > 0
 
+		// Look up ad unit sizes for responsive filtering
+		var adUnitSizes [][]int
+		if isResponsive && slot.AdUnit != "" {
+			if adUnit := h.cache.GetAdUnitByCode(slot.AdUnit); adUnit != nil {
+				adUnitSizes = adUnit.Sizes
+			}
+		}
+
 		// Match line items based on targeting and ad unit
 		var matched []models.LineItem
 		if isResponsive {
-			matched = h.matcher.MatchResponsive(req.Targeting, lineItems, slot.MaxWidth)
+			matched = h.matcher.MatchResponsive(req.Targeting, lineItems, slot.MaxWidth, adUnitSizes)
 		} else {
 			matched = h.matcher.Match(req.Targeting, lineItems, slot.Width, slot.Height)
 		}
@@ -113,7 +121,7 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 		// Select creative
 		var selectedCreative *models.Creative
 		if isResponsive {
-			selectedCreative = h.matcher.SelectCreativeResponsive(*selectedLineItem, slot.MaxWidth)
+			selectedCreative = h.matcher.SelectCreativeResponsive(*selectedLineItem, slot.MaxWidth, adUnitSizes)
 		} else {
 			selectedCreative = h.matcher.SelectCreative(*selectedLineItem, slot.Width, slot.Height)
 		}

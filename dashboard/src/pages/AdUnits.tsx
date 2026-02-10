@@ -26,6 +26,9 @@ export default function AdUnits() {
   // Integration code modal
   const [showIntegrationModal, setShowIntegrationModal] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<AdUnit | null>(null);
+  const [integrationTab, setIntegrationTab] = useState<'web' | 'android' | 'ios'>('web');
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [selectedSizeIndex, setSelectedSizeIndex] = useState(0);
 
   useEffect(() => {
     loadAdUnits();
@@ -70,6 +73,10 @@ export default function AdUnits() {
 
   function openIntegrationModal(unit: AdUnit) {
     setSelectedUnit(unit);
+    setSelectedSizeIndex(0);
+    setIntegrationTab(
+      unit.platform === 'mobile' ? 'android' : 'web'
+    );
     setShowIntegrationModal(true);
   }
 
@@ -134,116 +141,254 @@ export default function AdUnits() {
     }
   }
 
-  function getWebIntegrationCode(unit: AdUnit) {
-    const size = unit.sizes?.[0] || [728, 90];
+  function getServerUrl() {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    if (apiUrl) return apiUrl;
+    return window.location.origin;
+  }
+
+  function getWebIntegrationCode(unit: AdUnit, sizeIndex: number) {
+    const size = unit.sizes?.[sizeIndex] || unit.sizes?.[0] || [728, 90];
+    const serverUrl = getServerUrl();
     return `<!-- MIMS Ad Manager - ${unit.name} -->
+<!-- Step 1: Add a container div where the ad will render -->
 <div id="${unit.code}"></div>
-<script src="YOUR_SERVER_URL/static/tag.js"></script>
+
+<!-- Step 2: Load the MIMS Ad tag script -->
+<script src="${serverUrl}/static/tag.js"></script>
+
+<!-- Step 3: Initialize and request the ad -->
 <script>
-  MIMSAds.init({ serverUrl: 'YOUR_SERVER_URL' });
+  MIMSAds.init({ serverUrl: '${serverUrl}' });
+
   MIMSAds.defineSlot('${unit.code}', {
     width: ${size[0]},
     height: ${size[1]},
     adUnit: '${unit.code}'
   });
-  MIMSAds.setTargeting('section', 'YOUR_SECTION');
-  MIMSAds.setTargeting('country', 'YOUR_COUNTRY');
+
+  // Optional: Set targeting key-values for this page
+  MIMSAds.setTargeting('section', 'news');
+
   MIMSAds.display();
 </script>`;
   }
 
-  function getAndroidIntegrationCode(unit: AdUnit) {
-    const size = unit.sizes?.[0] || [320, 50];
-    return `// Add to your build.gradle (app level)
-// implementation 'com.mims:ads-sdk:1.0.0'
+  function getWebMultiSlotCode(unit: AdUnit) {
+    const serverUrl = getServerUrl();
+    const slots = (unit.sizes || [[728, 90]]).map((size, i) => {
+      const slotId = i === 0 ? unit.code : `${unit.code}_${i + 1}`;
+      return { slotId, width: size[0], height: size[1] };
+    });
 
-// In your Activity or Fragment
-import com.mims.ads.MIMSAds
-import com.mims.ads.BannerView
+    const divs = slots.map(s => `<div id="${s.slotId}"></div>`).join('\n');
+    const defines = slots.map(s =>
+      `  MIMSAds.defineSlot('${s.slotId}', {\n    width: ${s.width},\n    height: ${s.height},\n    adUnit: '${unit.code}'\n  });`
+    ).join('\n\n');
+
+    return `<!-- MIMS Ad Manager - ${unit.name} (All Sizes) -->
+${divs}
+
+<script src="${serverUrl}/static/tag.js"></script>
+<script>
+  MIMSAds.init({ serverUrl: '${serverUrl}' });
+
+${defines}
+
+  // Optional: Set targeting key-values for this page
+  MIMSAds.setTargeting('section', 'news');
+
+  MIMSAds.display();
+</script>`;
+  }
+
+  function getAndroidIntegrationCode(unit: AdUnit, sizeIndex: number) {
+    const size = unit.sizes?.[sizeIndex] || unit.sizes?.[0] || [320, 50];
+    const serverUrl = getServerUrl();
+    return `// ----- Android Integration (WebView) -----
+// Use a WebView to load the MIMS ad tag in your Android app.
+
+// 1. Add internet permission to AndroidManifest.xml:
+// <uses-permission android:name="android.permission.INTERNET" />
+
+// 2. Add a WebView to your layout (res/layout/activity_main.xml):
+// <WebView
+//     android:id="@+id/ad_webview"
+//     android:layout_width="${size[0]}dp"
+//     android:layout_height="${size[1]}dp" />
+
+// 3. Load the ad in your Activity:
+import android.os.Bundle
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var bannerView: BannerView
+    private lateinit var adWebView: WebView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-        // Initialize SDK
-        MIMSAds.init(this, "YOUR_SERVER_URL")
+        adWebView = findViewById(R.id.ad_webview)
+        adWebView.webViewClient = WebViewClient()
+        adWebView.settings.javaScriptEnabled = true
+        adWebView.settings.domStorageEnabled = true
 
-        // Create banner view
-        bannerView = BannerView(this).apply {
-            adUnitCode = "${unit.code}"
-            adSize = AdSize(${size[0]}, ${size[1]})
-        }
+        val adHtml = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta name="viewport"
+                content="width=device-width, initial-scale=1.0">
+              <style>
+                body { margin: 0; padding: 0; }
+              </style>
+            </head>
+            <body>
+              <div id="${unit.code}"></div>
+              <script src="${serverUrl}/static/tag.js"></script>
+              <script>
+                MIMSAds.init({
+                  serverUrl: '${serverUrl}',
+                  platform: 'android'
+                });
+                MIMSAds.defineSlot('${unit.code}', {
+                  width: ${size[0]},
+                  height: ${size[1]},
+                  adUnit: '${unit.code}'
+                });
+                MIMSAds.setTargeting('section', 'news');
+                MIMSAds.display();
+              </script>
+            </body>
+            </html>
+        """.trimIndent()
 
-        // Set targeting
-        MIMSAds.setTargeting("section", "YOUR_SECTION")
-        MIMSAds.setTargeting("country", "YOUR_COUNTRY")
-
-        // Add to layout and load
-        findViewById<ViewGroup>(R.id.ad_container).addView(bannerView)
-        bannerView.loadAd()
+        adWebView.loadDataWithBaseURL(
+            "${serverUrl}",
+            adHtml,
+            "text/html",
+            "UTF-8",
+            null
+        )
     }
-}
 
-<!-- In your layout XML -->
-<FrameLayout
-    android:id="@+id/ad_container"
-    android:layout_width="${size[0]}dp"
-    android:layout_height="${size[1]}dp" />`;
-  }
-
-  function getIOSIntegrationCode(unit: AdUnit) {
-    const size = unit.sizes?.[0] || [320, 50];
-    return `// Add to your Podfile
-// pod 'MIMSAds', '~> 1.0'
-
-// In your ViewController
-import MIMSAds
-
-class ViewController: UIViewController {
-    var bannerView: MIMSBannerView!
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-
-        // Initialize SDK
-        MIMSAds.shared.initialize(serverURL: "YOUR_SERVER_URL")
-
-        // Create banner view
-        bannerView = MIMSBannerView(frame: CGRect(
-            x: 0, y: 0,
-            width: ${size[0]}, height: ${size[1]}
-        ))
-        bannerView.adUnitCode = "${unit.code}"
-
-        // Set targeting
-        MIMSAds.shared.setTargeting(key: "section", value: "YOUR_SECTION")
-        MIMSAds.shared.setTargeting(key: "country", value: "YOUR_COUNTRY")
-
-        // Add to view and load
-        view.addSubview(bannerView)
-        bannerView.loadAd()
-    }
-}
-
-// SwiftUI
-struct ContentView: View {
-    var body: some View {
-        VStack {
-            MIMSBannerViewRepresentable(
-                adUnitCode: "${unit.code}",
-                size: CGSize(width: ${size[0]}, height: ${size[1]})
-            )
-            .frame(width: ${size[0]}, height: ${size[1]})
-        }
+    override fun onDestroy() {
+        adWebView.destroy()
+        super.onDestroy()
     }
 }`;
   }
 
-  function copyToClipboard(text: string) {
+  function getIOSIntegrationCode(unit: AdUnit, sizeIndex: number) {
+    const size = unit.sizes?.[sizeIndex] || unit.sizes?.[0] || [320, 50];
+    const serverUrl = getServerUrl();
+    return `// ----- iOS Integration (WKWebView) -----
+// Use a WKWebView to load the MIMS ad tag in your iOS app.
+
+import UIKit
+import WebKit
+
+class AdBannerViewController: UIViewController, WKNavigationDelegate {
+    private var webView: WKWebView!
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        // 1. Create and configure WKWebView
+        let config = WKWebViewConfiguration()
+        config.allowsInlineMediaPlayback = true
+
+        webView = WKWebView(
+            frame: CGRect(x: 0, y: 0,
+                          width: ${size[0]}, height: ${size[1]}),
+            configuration: config
+        )
+        webView.navigationDelegate = self
+        webView.scrollView.isScrollEnabled = false
+        view.addSubview(webView)
+
+        // 2. Load the ad HTML
+        let adHTML = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta name="viewport"
+            content="width=device-width, initial-scale=1.0">
+          <style>body { margin: 0; padding: 0; }</style>
+        </head>
+        <body>
+          <div id="${unit.code}"></div>
+          <script src="${serverUrl}/static/tag.js"></script>
+          <script>
+            MIMSAds.init({
+              serverUrl: '${serverUrl}',
+              platform: 'ios'
+            });
+            MIMSAds.defineSlot('${unit.code}', {
+              width: ${size[0]},
+              height: ${size[1]},
+              adUnit: '${unit.code}'
+            });
+            MIMSAds.setTargeting('section', 'news');
+            MIMSAds.display();
+          </script>
+        </body>
+        </html>
+        """
+
+        webView.loadHTMLString(
+            adHTML,
+            baseURL: URL(string: "${serverUrl}")
+        )
+    }
+
+    // 3. Handle ad clicks - open in Safari
+    func webView(_ webView: WKWebView,
+                 decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if navigationAction.navigationType == .linkActivated,
+           let url = navigationAction.request.url {
+            UIApplication.shared.open(url)
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+}
+
+// ----- SwiftUI Wrapper -----
+import SwiftUI
+
+struct AdBannerView: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context)
+        -> AdBannerViewController {
+        return AdBannerViewController()
+    }
+
+    func updateUIViewController(
+        _ uiViewController: AdBannerViewController,
+        context: Context) {}
+}
+
+// Usage in SwiftUI:
+// struct ContentView: View {
+//     var body: some View {
+//         VStack {
+//             AdBannerView()
+//                 .frame(width: ${size[0]}, height: ${size[1]})
+//             Spacer()
+//         }
+//     }
+// }`;
+  }
+
+  function copyToClipboard(text: string, field: string) {
     navigator.clipboard.writeText(text);
-    // Could add a toast notification here
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
   }
 
   if (loading) {
@@ -448,69 +593,228 @@ struct ContentView: View {
       )}
 
       {/* Integration Code Modal */}
-      {showIntegrationModal && selectedUnit && (
+      {showIntegrationModal && selectedUnit && (() => {
+        const sizes = selectedUnit.sizes || [[728, 90]];
+        const selectedSize = sizes[selectedSizeIndex] || sizes[0];
+        const showWebTab = selectedUnit.platform === 'web' || selectedUnit.platform === 'both';
+        const showMobileTabs = selectedUnit.platform === 'mobile' || selectedUnit.platform === 'both';
+        const tabs = [
+          ...(showWebTab ? [{ key: 'web' as const, label: 'Web (HTML/JS)' }] : []),
+          ...(showMobileTabs ? [
+            { key: 'android' as const, label: 'Android (Kotlin)' },
+            { key: 'ios' as const, label: 'iOS (Swift)' },
+          ] : []),
+        ];
+
+        return (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-medium mb-4">
-              Integration Code - {selectedUnit.name}
-            </h3>
-            <p className="text-sm text-gray-500 mb-4">
-              Copy the code below to integrate this ad unit into your {selectedUnit.platform === 'mobile' ? 'mobile app' : 'website'}.
-              Replace <code className="bg-gray-100 px-1 rounded">YOUR_SERVER_URL</code> with your actual server URL.
-            </p>
-
-            {(selectedUnit.platform === 'web' || selectedUnit.platform === 'both') && (
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-gray-900">Web (JavaScript)</h4>
-                  <button
-                    onClick={() => copyToClipboard(getWebIntegrationCode(selectedUnit))}
-                    className="text-sm text-blue-600 hover:text-blue-800"
-                  >
-                    Copy
-                  </button>
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4 border-b border-gray-200">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Integration Guide - {selectedUnit.name}
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Ad Unit Code: <code className="bg-gray-100 px-1.5 py-0.5 rounded font-mono text-xs">{selectedUnit.code}</code>
+                    {' | '}Sizes: {sizes.map(s => `${s[0]}x${s[1]}`).join(', ')}
+                  </p>
                 </div>
-                <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto">
-                  {getWebIntegrationCode(selectedUnit)}
-                </pre>
+                <button
+                  onClick={() => setShowIntegrationModal(false)}
+                  className="text-gray-400 hover:text-gray-500 text-xl leading-none"
+                >
+                  &times;
+                </button>
               </div>
-            )}
 
-            {(selectedUnit.platform === 'mobile' || selectedUnit.platform === 'both') && (
-              <>
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-gray-900">Android (Kotlin)</h4>
+              {/* Size Selector */}
+              {sizes.length > 1 && (
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700">Size:</span>
+                  {sizes.map((size, i) => (
                     <button
-                      onClick={() => copyToClipboard(getAndroidIntegrationCode(selectedUnit))}
-                      className="text-sm text-blue-600 hover:text-blue-800"
+                      key={i}
+                      onClick={() => setSelectedSizeIndex(i)}
+                      className={`px-3 py-1 text-xs rounded-full font-medium ${
+                        selectedSizeIndex === i
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
                     >
-                      Copy
+                      {size[0]}x{size[1]}
                     </button>
-                  </div>
-                  <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto">
-                    {getAndroidIntegrationCode(selectedUnit)}
-                  </pre>
+                  ))}
                 </div>
+              )}
 
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-gray-900">iOS (Swift)</h4>
-                    <button
-                      onClick={() => copyToClipboard(getIOSIntegrationCode(selectedUnit))}
-                      className="text-sm text-blue-600 hover:text-blue-800"
-                    >
-                      Copy
-                    </button>
+              {/* Platform Tabs */}
+              <div className="mt-3 flex gap-1 border-b border-gray-200 -mb-4">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setIntegrationTab(tab.key)}
+                    className={`px-4 py-2 text-sm font-medium rounded-t-md border-b-2 ${
+                      integrationTab === tab.key
+                        ? 'border-blue-600 text-blue-600 bg-blue-50'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {/* Web Tab */}
+              {integrationTab === 'web' && showWebTab && (
+                <div>
+                  <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h4 className="font-medium text-blue-900 mb-2">How it works</h4>
+                    <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                      <li>Add a <code className="bg-blue-100 px-1 rounded">&lt;div&gt;</code> container where the ad banner will appear</li>
+                      <li>Load the MIMS Ad tag script from your ad server</li>
+                      <li>Initialize the SDK, define the ad slot with the size, and call <code className="bg-blue-100 px-1 rounded">display()</code></li>
+                      <li>The script automatically handles ad loading, impression tracking, viewability, and click tracking</li>
+                    </ol>
                   </div>
-                  <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto">
-                    {getIOSIntegrationCode(selectedUnit)}
-                  </pre>
-                </div>
-              </>
-            )}
 
-            <div className="flex justify-end">
+                  {/* Single size code */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900">
+                        Integration Code ({selectedSize[0]}x{selectedSize[1]})
+                      </h4>
+                      <button
+                        onClick={() => copyToClipboard(getWebIntegrationCode(selectedUnit, selectedSizeIndex), 'web-single')}
+                        className={`px-3 py-1 text-sm rounded ${
+                          copiedField === 'web-single'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {copiedField === 'web-single' ? 'Copied!' : 'Copy Code'}
+                      </button>
+                    </div>
+                    <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto whitespace-pre">{getWebIntegrationCode(selectedUnit, selectedSizeIndex)}</pre>
+                  </div>
+
+                  {/* Multi-size code */}
+                  {sizes.length > 1 && (
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-gray-900">
+                          All Sizes on One Page
+                        </h4>
+                        <button
+                          onClick={() => copyToClipboard(getWebMultiSlotCode(selectedUnit), 'web-multi')}
+                          className={`px-3 py-1 text-sm rounded ${
+                            copiedField === 'web-multi'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {copiedField === 'web-multi' ? 'Copied!' : 'Copy Code'}
+                        </button>
+                      </div>
+                      <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto whitespace-pre">{getWebMultiSlotCode(selectedUnit)}</pre>
+                    </div>
+                  )}
+
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+                    <strong>Targeting:</strong> Use <code className="bg-gray-200 px-1 rounded">MIMSAds.setTargeting(key, value)</code> to pass page-level
+                    targeting (e.g., section, category, keywords). These values are matched against line item targeting rules to serve the right ad.
+                    You can call <code className="bg-gray-200 px-1 rounded">MIMSAds.refresh()</code> to reload ads without a full page reload.
+                  </div>
+                </div>
+              )}
+
+              {/* Android Tab */}
+              {integrationTab === 'android' && showMobileTabs && (
+                <div>
+                  <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <h4 className="font-medium text-green-900 mb-2">How it works</h4>
+                    <ol className="text-sm text-green-800 space-y-1 list-decimal list-inside">
+                      <li>Add a <code className="bg-green-100 px-1 rounded">WebView</code> to your layout with the ad banner dimensions</li>
+                      <li>Load an HTML snippet that includes the MIMS Ad tag into the WebView</li>
+                      <li>The ad tag handles rendering, tracking, and click-through automatically</li>
+                      <li>Ad clicks open in the device browser via WebViewClient</li>
+                    </ol>
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900">
+                        Android WebView Integration ({selectedSize[0]}x{selectedSize[1]})
+                      </h4>
+                      <button
+                        onClick={() => copyToClipboard(getAndroidIntegrationCode(selectedUnit, selectedSizeIndex), 'android')}
+                        className={`px-3 py-1 text-sm rounded ${
+                          copiedField === 'android'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {copiedField === 'android' ? 'Copied!' : 'Copy Code'}
+                      </button>
+                    </div>
+                    <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto whitespace-pre">{getAndroidIntegrationCode(selectedUnit, selectedSizeIndex)}</pre>
+                  </div>
+
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+                    <strong>Note:</strong> The WebView approach uses the same JavaScript ad tag as web, ensuring consistent behavior and tracking.
+                    Set <code className="bg-gray-200 px-1 rounded">platform: 'android'</code> in <code className="bg-gray-200 px-1 rounded">MIMSAds.init()</code> so
+                    impressions are attributed to the correct platform in reports.
+                  </div>
+                </div>
+              )}
+
+              {/* iOS Tab */}
+              {integrationTab === 'ios' && showMobileTabs && (
+                <div>
+                  <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                    <h4 className="font-medium text-purple-900 mb-2">How it works</h4>
+                    <ol className="text-sm text-purple-800 space-y-1 list-decimal list-inside">
+                      <li>Create a <code className="bg-purple-100 px-1 rounded">WKWebView</code> sized to the ad banner dimensions</li>
+                      <li>Load an HTML snippet containing the MIMS Ad tag into the web view</li>
+                      <li>The ad tag handles rendering, impression and viewability tracking automatically</li>
+                      <li>Ad clicks are intercepted by the navigation delegate and opened in Safari</li>
+                    </ol>
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-gray-900">
+                        iOS WKWebView Integration ({selectedSize[0]}x{selectedSize[1]})
+                      </h4>
+                      <button
+                        onClick={() => copyToClipboard(getIOSIntegrationCode(selectedUnit, selectedSizeIndex), 'ios')}
+                        className={`px-3 py-1 text-sm rounded ${
+                          copiedField === 'ios'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {copiedField === 'ios' ? 'Copied!' : 'Copy Code'}
+                      </button>
+                    </div>
+                    <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto whitespace-pre">{getIOSIntegrationCode(selectedUnit, selectedSizeIndex)}</pre>
+                  </div>
+
+                  <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600">
+                    <strong>Note:</strong> Set <code className="bg-gray-200 px-1 rounded">platform: 'ios'</code> in <code className="bg-gray-200 px-1 rounded">MIMSAds.init()</code> so
+                    impressions are attributed correctly. The <code className="bg-gray-200 px-1 rounded">WKNavigationDelegate</code> ensures ad clicks
+                    open in Safari rather than within the web view. A SwiftUI wrapper is included for use in SwiftUI-based apps.
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
               <button
                 onClick={() => setShowIntegrationModal(false)}
                 className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border border-gray-300 rounded-md"
@@ -520,7 +824,8 @@ struct ContentView: View {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

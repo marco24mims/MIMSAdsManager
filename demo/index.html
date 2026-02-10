@@ -313,16 +313,17 @@
             clearStatus();
             log('Initializing MIMS Ads SDK...');
 
-            // Initialize SDK
-            MIMSAds.init({
-                serverUrl: 'http://10.50.10.65:8000'
-            });
-
-            log('User ID: ' + MIMSAds.getUserId());
-
             // Get targeting values
             const section = document.getElementById('section').value;
             const country = document.getElementById('country').value;
+
+            // Initialize SDK with selected country
+            MIMSAds.init({
+                serverUrl: 'http://10.50.10.65:8000',
+                country: country
+            });
+
+            log('User ID: ' + MIMSAds.getUserId());
 
             log(`Setting targeting: section=${section}, country=${country}`);
 
@@ -351,6 +352,12 @@
 
             const section = document.getElementById('section').value;
             const country = document.getElementById('country').value;
+
+            // Update country in config
+            MIMSAds.init({
+                serverUrl: 'http://10.50.10.65:8000',
+                country: country
+            });
 
             MIMSAds.clearTargeting();
             MIMSAds.setTargeting('section', section);

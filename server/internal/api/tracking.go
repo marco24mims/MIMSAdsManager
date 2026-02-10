@@ -62,6 +62,10 @@ func (h *TrackingHandler) TrackViewable(c *fiber.Ctx) error {
 	lineItemID, _ := strconv.Atoi(c.Query("li"))
 	creativeID, _ := strconv.Atoi(c.Query("c"))
 	userID := c.Query("u")
+	platform := c.Query("p")
+	country := c.Query("co")
+	adUnit := c.Query("au")
+	section := c.Query("sec")
 
 	if impressionID == "" || lineItemID == 0 {
 		return c.SendStatus(fiber.StatusBadRequest)
@@ -73,6 +77,10 @@ func (h *TrackingHandler) TrackViewable(c *fiber.Ctx) error {
 		LineItemID:   lineItemID,
 		CreativeID:   creativeID,
 		UserID:       userID,
+		Platform:     platform,
+		Country:      country,
+		AdUnit:       adUnit,
+		Section:      section,
 	}
 
 	if err := h.store.RecordEvent(c.Context(), event); err != nil {
@@ -89,6 +97,10 @@ func (h *TrackingHandler) TrackClick(c *fiber.Ctx) error {
 	lineItemID, _ := strconv.Atoi(c.Query("li"))
 	creativeID, _ := strconv.Atoi(c.Query("c"))
 	userID := c.Query("u")
+	platform := c.Query("p")
+	country := c.Query("co")
+	adUnit := c.Query("au")
+	section := c.Query("sec")
 	redirectURL := c.Query("url")
 
 	if impressionID == "" || lineItemID == 0 {
@@ -101,6 +113,10 @@ func (h *TrackingHandler) TrackClick(c *fiber.Ctx) error {
 		LineItemID:   lineItemID,
 		CreativeID:   creativeID,
 		UserID:       userID,
+		Platform:     platform,
+		Country:      country,
+		AdUnit:       adUnit,
+		Section:      section,
 	}
 
 	if err := h.store.RecordEvent(c.Context(), event); err != nil {

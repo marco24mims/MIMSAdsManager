@@ -119,13 +119,14 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 		// Build tracking URLs with key-value data
 		trackingBase := fmt.Sprintf("%s/v1", serverURL)
 		section := req.Targeting["section"]
+		adUnit := slot.AdUnit
 		tracking := models.Tracking{
-			Impression: fmt.Sprintf("%s/imp?id=%s&li=%d&c=%d&u=%s&p=%s&co=%s&sec=%s",
-				trackingBase, impressionID, selectedLineItem.ID, selectedCreative.ID, userID, req.Platform, req.Country, section),
-			Viewable: fmt.Sprintf("%s/view?id=%s&li=%d&c=%d&u=%s",
-				trackingBase, impressionID, selectedLineItem.ID, selectedCreative.ID, userID),
-			Click: fmt.Sprintf("%s/click?id=%s&li=%d&c=%d&u=%s&url=%s",
-				trackingBase, impressionID, selectedLineItem.ID, selectedCreative.ID, userID, selectedCreative.ClickURL),
+			Impression: fmt.Sprintf("%s/imp?id=%s&li=%d&c=%d&u=%s&p=%s&co=%s&sec=%s&au=%s",
+				trackingBase, impressionID, selectedLineItem.ID, selectedCreative.ID, userID, req.Platform, req.Country, section, adUnit),
+			Viewable: fmt.Sprintf("%s/view?id=%s&li=%d&c=%d&u=%s&p=%s&co=%s&sec=%s&au=%s",
+				trackingBase, impressionID, selectedLineItem.ID, selectedCreative.ID, userID, req.Platform, req.Country, section, adUnit),
+			Click: fmt.Sprintf("%s/click?id=%s&li=%d&c=%d&u=%s&p=%s&co=%s&sec=%s&au=%s&url=%s",
+				trackingBase, impressionID, selectedLineItem.ID, selectedCreative.ID, userID, req.Platform, req.Country, section, adUnit, selectedCreative.ClickURL),
 		}
 
 		result := models.AdResult{

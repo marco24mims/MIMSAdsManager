@@ -9,6 +9,7 @@ type LineItem struct {
 	Name               string           `json:"name"`
 	Priority           int              `json:"priority"`
 	Weight             int              `json:"weight"`
+	SOVPercentage      int              `json:"sov_percentage"`
 	FrequencyCap       int              `json:"frequency_cap"`
 	FrequencyCapPeriod string           `json:"frequency_cap_period"`
 	Status             string           `json:"status"`
@@ -33,6 +34,7 @@ type CreateLineItemRequest struct {
 	CampaignID         int    `json:"campaign_id"`
 	Name               string `json:"name"`
 	Priority           int    `json:"priority,omitempty"`
+	SOVPercentage      int    `json:"sov_percentage,omitempty"`
 	FrequencyCap       int    `json:"frequency_cap,omitempty"`
 	FrequencyCapPeriod string `json:"frequency_cap_period,omitempty"`
 	Status             string `json:"status,omitempty"`
@@ -42,6 +44,8 @@ type CreateLineItemRequest struct {
 type UpdateLineItemRequest struct {
 	Name               string `json:"name,omitempty"`
 	Priority           int    `json:"priority,omitempty"`
+	Weight             *int   `json:"weight,omitempty"`
+	SOVPercentage      *int   `json:"sov_percentage,omitempty"`
 	FrequencyCap       int    `json:"frequency_cap,omitempty"`
 	FrequencyCapPeriod string `json:"frequency_cap_period,omitempty"`
 	Status             string `json:"status,omitempty"`

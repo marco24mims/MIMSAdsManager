@@ -272,7 +272,7 @@ func (s *PostgresStore) SetLineItemAdUnits(ctx context.Context, lineItemID int, 
 // ListLineItems returns line items for a campaign
 func (s *PostgresStore) ListLineItems(ctx context.Context, campaignID int) ([]models.LineItem, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, campaign_id, name, priority, weight, frequency_cap, frequency_cap_period, status, created_at, updated_at
+		SELECT id, campaign_id, name, priority, weight, sov_percentage, frequency_cap, frequency_cap_period, status, created_at, updated_at
 		FROM line_items
 		WHERE campaign_id = $1
 		ORDER BY priority DESC, created_at DESC
@@ -285,7 +285,7 @@ func (s *PostgresStore) ListLineItems(ctx context.Context, campaignID int) ([]mo
 	var items []models.LineItem
 	for rows.Next() {
 		var li models.LineItem
-		if err := rows.Scan(&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt); err != nil {
+		if err := rows.Scan(&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.SOVPercentage, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, li)
@@ -297,9 +297,9 @@ func (s *PostgresStore) ListLineItems(ctx context.Context, campaignID int) ([]mo
 func (s *PostgresStore) GetLineItem(ctx context.Context, id int) (*models.LineItem, error) {
 	var li models.LineItem
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, campaign_id, name, priority, weight, frequency_cap, frequency_cap_period, status, created_at, updated_at
+		SELECT id, campaign_id, name, priority, weight, sov_percentage, frequency_cap, frequency_cap_period, status, created_at, updated_at
 		FROM line_items WHERE id = $1
-	`, id).Scan(&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt)
+	`, id).Scan(&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.SOVPercentage, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
@@ -326,11 +326,11 @@ func (s *PostgresStore) CreateLineItem(ctx context.Context, req *models.CreateLi
 
 	var li models.LineItem
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO line_items (campaign_id, name, priority, weight, frequency_cap, frequency_cap_period, status, created_at, updated_at)
-		VALUES ($1, $2, $3, 100, $4, $5, $6, NOW(), NOW())
-		RETURNING id, campaign_id, name, priority, weight, frequency_cap, frequency_cap_period, status, created_at, updated_at
-	`, req.CampaignID, req.Name, priority, req.FrequencyCap, period, status).Scan(
-		&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt)
+		INSERT INTO line_items (campaign_id, name, priority, weight, sov_percentage, frequency_cap, frequency_cap_period, status, created_at, updated_at)
+		VALUES ($1, $2, $3, 100, $4, $5, $6, $7, NOW(), NOW())
+		RETURNING id, campaign_id, name, priority, weight, sov_percentage, frequency_cap, frequency_cap_period, status, created_at, updated_at
+	`, req.CampaignID, req.Name, priority, req.SOVPercentage, req.FrequencyCap, period, status).Scan(
+		&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.SOVPercentage, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -339,19 +339,31 @@ func (s *PostgresStore) CreateLineItem(ctx context.Context, req *models.CreateLi
 
 // UpdateLineItem updates an existing line item
 func (s *PostgresStore) UpdateLineItem(ctx context.Context, id int, req *models.UpdateLineItemRequest) (*models.LineItem, error) {
+	// Use -1 sentinel for pointer fields when nil (not sent)
+	weightVal := -1
+	if req.Weight != nil {
+		weightVal = *req.Weight
+	}
+	sovVal := -1
+	if req.SOVPercentage != nil {
+		sovVal = *req.SOVPercentage
+	}
+
 	var li models.LineItem
 	err := s.pool.QueryRow(ctx, `
 		UPDATE line_items
 		SET name = COALESCE(NULLIF($2, ''), name),
 		    priority = CASE WHEN $3 > 0 THEN $3 ELSE priority END,
-		    frequency_cap = CASE WHEN $4 >= 0 THEN $4 ELSE frequency_cap END,
-		    frequency_cap_period = COALESCE(NULLIF($5, ''), frequency_cap_period),
-		    status = COALESCE(NULLIF($6, ''), status),
+		    weight = CASE WHEN $4 >= 0 THEN $4 ELSE weight END,
+		    sov_percentage = CASE WHEN $5 >= 0 THEN $5 ELSE sov_percentage END,
+		    frequency_cap = CASE WHEN $6 >= 0 THEN $6 ELSE frequency_cap END,
+		    frequency_cap_period = COALESCE(NULLIF($7, ''), frequency_cap_period),
+		    status = COALESCE(NULLIF($8, ''), status),
 		    updated_at = NOW()
 		WHERE id = $1
-		RETURNING id, campaign_id, name, priority, weight, frequency_cap, frequency_cap_period, status, created_at, updated_at
-	`, id, req.Name, req.Priority, req.FrequencyCap, req.FrequencyCapPeriod, req.Status).Scan(
-		&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt)
+		RETURNING id, campaign_id, name, priority, weight, sov_percentage, frequency_cap, frequency_cap_period, status, created_at, updated_at
+	`, id, req.Name, req.Priority, weightVal, sovVal, req.FrequencyCap, req.FrequencyCapPeriod, req.Status).Scan(
+		&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.SOVPercentage, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt)
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
@@ -540,7 +552,7 @@ func (s *PostgresStore) RecordEvent(ctx context.Context, event *models.Event) er
 func (s *PostgresStore) GetActiveLineItemsWithCreatives(ctx context.Context) ([]models.LineItem, error) {
 	// Get active line items
 	rows, err := s.pool.Query(ctx, `
-		SELECT li.id, li.campaign_id, li.name, li.priority, li.weight, li.frequency_cap, li.frequency_cap_period, li.status, li.created_at, li.updated_at
+		SELECT li.id, li.campaign_id, li.name, li.priority, li.weight, li.sov_percentage, li.frequency_cap, li.frequency_cap_period, li.status, li.created_at, li.updated_at
 		FROM line_items li
 		JOIN campaigns c ON li.campaign_id = c.id
 		WHERE li.status = 'active' AND c.status = 'active'
@@ -554,7 +566,7 @@ func (s *PostgresStore) GetActiveLineItemsWithCreatives(ctx context.Context) ([]
 	var items []models.LineItem
 	for rows.Next() {
 		var li models.LineItem
-		if err := rows.Scan(&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt); err != nil {
+		if err := rows.Scan(&li.ID, &li.CampaignID, &li.Name, &li.Priority, &li.Weight, &li.SOVPercentage, &li.FrequencyCap, &li.FrequencyCapPeriod, &li.Status, &li.CreatedAt, &li.UpdatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, li)

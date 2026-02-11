@@ -39,6 +39,7 @@ CREATE TABLE line_items (
     name VARCHAR(255) NOT NULL,
     priority INTEGER DEFAULT 5,
     weight INTEGER DEFAULT 100,
+    sov_percentage INTEGER DEFAULT 0,
     frequency_cap INTEGER DEFAULT 0,
     frequency_cap_period VARCHAR(20) DEFAULT 'day',
     status VARCHAR(20) DEFAULT 'active',

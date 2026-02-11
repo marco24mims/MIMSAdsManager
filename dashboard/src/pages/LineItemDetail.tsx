@@ -36,6 +36,7 @@ export default function LineItemDetail() {
   const [editingSettings, setEditingSettings] = useState({
     priority: 5,
     weight: 100,
+    sov_percentage: 0,
     frequency_cap: 0,
     frequency_cap_period: 'day'
   });
@@ -109,6 +110,7 @@ export default function LineItemDetail() {
     setEditingSettings({
       priority: lineItem.priority,
       weight: lineItem.weight || 100,
+      sov_percentage: lineItem.sov_percentage || 0,
       frequency_cap: lineItem.frequency_cap || 0,
       frequency_cap_period: lineItem.frequency_cap_period || 'day'
     });
@@ -121,6 +123,7 @@ export default function LineItemDetail() {
       const updated = await updateLineItem(lineItem.id, {
         priority: editingSettings.priority,
         weight: editingSettings.weight,
+        sov_percentage: editingSettings.sov_percentage,
         frequency_cap: editingSettings.frequency_cap,
         frequency_cap_period: editingSettings.frequency_cap_period,
       });
@@ -342,6 +345,9 @@ export default function LineItemDetail() {
               </span>
               <span className="text-sm text-gray-500">Priority: {lineItem.priority}</span>
               <span className="text-sm text-gray-500">Weight: {lineItem.weight || 100}</span>
+              <span className="text-sm text-gray-500">
+                SOV: {lineItem.sov_percentage > 0 ? `${lineItem.sov_percentage}%` : 'None'}
+              </span>
               <span className="text-sm text-gray-500">
                 Freq Cap: {lineItem.frequency_cap || 'None'}
                 {lineItem.frequency_cap > 0 && `/${lineItem.frequency_cap_period}`}
@@ -819,6 +825,22 @@ export default function LineItemDetail() {
                 <p className="mt-1 text-xs text-gray-500">
                   When multiple line items have the same priority, weight determines rotation ratio.
                   E.g., weight 200 vs 100 means 2:1 serving ratio.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Share of Voice (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={editingSettings.sov_percentage}
+                  onChange={(e) => setEditingSettings({ ...editingSettings, sov_percentage: Number(e.target.value) })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Set the percentage of ad requests this line item should fill (e.g., 25 = 25% of requests).
+                  When total SOV of competing items is less than 100%, remaining requests return no ad.
+                  Set to 0 to use weight-based rotation instead.
                 </p>
               </div>
               <div>

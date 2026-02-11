@@ -1,0 +1,1 @@
+ALTER TABLE line_items ADD COLUMN IF NOT EXISTS sov_percentage INTEGER DEFAULT 0;

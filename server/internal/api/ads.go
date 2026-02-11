@@ -112,8 +112,8 @@ func (h *AdsHandler) GetAds(c *fiber.Ctx) error {
 			continue
 		}
 
-		// Select line item using weighted random among same priority
-		selectedLineItem := selectWeightedRandom(eligible)
+		// Select line item using SOV-aware selection among same priority
+		selectedLineItem := selectWithSOV(eligible)
 		if selectedLineItem == nil {
 			continue
 		}
@@ -216,6 +216,80 @@ func selectWeightedRandom(lineItems []models.LineItem) *models.LineItem {
 	}
 
 	return &samePriority[0]
+}
+
+// selectWithSOV selects a line item using SOV-aware selection.
+// Items with SOVPercentage > 0 get their exact share of impressions.
+// Items with SOVPercentage == 0 fill the remaining inventory by weight.
+// If total SOV < 100 and no weight-based items exist, the gap returns nil (no ad).
+func selectWithSOV(lineItems []models.LineItem) *models.LineItem {
+	if len(lineItems) == 0 {
+		return nil
+	}
+
+	// Get the highest priority
+	highestPriority := lineItems[0].Priority
+
+	// Filter to only highest priority items
+	var samePriority []models.LineItem
+	for _, li := range lineItems {
+		if li.Priority == highestPriority {
+			samePriority = append(samePriority, li)
+		} else {
+			break // Already sorted by priority desc
+		}
+	}
+
+	// Separate SOV and non-SOV items
+	var sovItems []models.LineItem
+	var nonSOVItems []models.LineItem
+	for _, li := range samePriority {
+		if li.SOVPercentage > 0 {
+			sovItems = append(sovItems, li)
+		} else {
+			nonSOVItems = append(nonSOVItems, li)
+		}
+	}
+
+	// If no SOV items, use standard weighted random (always fills)
+	if len(sovItems) == 0 {
+		return selectWeightedRandom(samePriority)
+	}
+
+	// Calculate total SOV (cap at 100)
+	totalSOV := 0
+	for _, li := range sovItems {
+		totalSOV += li.SOVPercentage
+	}
+	if totalSOV > 100 {
+		totalSOV = 100
+	}
+
+	// Roll random 0-99
+	roll := rand.Intn(100)
+
+	if roll < totalSOV {
+		// Pick from SOV items proportional to their SOV percentages
+		cumulative := 0
+		for i := range sovItems {
+			cumulative += sovItems[i].SOVPercentage
+			if cumulative > 100 {
+				cumulative = 100
+			}
+			if roll < cumulative {
+				return &sovItems[i]
+			}
+		}
+		return &sovItems[0]
+	}
+
+	// Roll >= totalSOV: fill with non-SOV items or return nil
+	if len(nonSOVItems) > 0 {
+		return selectWeightedRandom(nonSOVItems)
+	}
+
+	// No non-SOV items to fill the gap — intentionally return no ad
+	return nil
 }
 
 // filterByAdUnit filters line items by ad unit code

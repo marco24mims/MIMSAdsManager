@@ -14,6 +14,7 @@ interface LineItem {
   name: string;
   priority: number;
   weight: number;
+  sov_percentage: number;
   frequency_cap: number;
   frequency_cap_period: string;
   status: string;

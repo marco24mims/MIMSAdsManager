@@ -25,8 +25,9 @@ func NewReportsHandler(store *storage.PostgresStore) *ReportsHandler {
 func (h *ReportsHandler) GetSummary(c *fiber.Ctx) error {
 	// Parse date range (default to last 7 days)
 	startDate, endDate := h.parseDateRange(c)
+	adUnit := c.Query("ad_unit", "")
 
-	summary, err := h.store.GetReportSummary(c.Context(), startDate, endDate)
+	summary, err := h.store.GetReportSummary(c.Context(), startDate, endDate, adUnit)
 	if err != nil {
 		return NewInternalError("Failed to get summary report")
 	}
@@ -41,8 +42,9 @@ func (h *ReportsHandler) GetSummary(c *fiber.Ctx) error {
 // GetDailyReport returns daily stats
 func (h *ReportsHandler) GetDailyReport(c *fiber.Ctx) error {
 	startDate, endDate := h.parseDateRange(c)
+	adUnit := c.Query("ad_unit", "")
 
-	daily, err := h.store.GetDailyReport(c.Context(), startDate, endDate)
+	daily, err := h.store.GetDailyReport(c.Context(), startDate, endDate, adUnit)
 	if err != nil {
 		return NewInternalError("Failed to get daily report")
 	}
@@ -107,8 +109,9 @@ func (h *ReportsHandler) parseDateRange(c *fiber.Ctx) (time.Time, time.Time) {
 func (h *ReportsHandler) GetKeyValueReport(c *fiber.Ctx) error {
 	key := c.Query("key", "country")
 	startDate, endDate := h.parseDateRange(c)
+	adUnit := c.Query("ad_unit", "")
 
-	stats, err := h.store.GetKeyValueReport(c.Context(), key, startDate, endDate)
+	stats, err := h.store.GetKeyValueReport(c.Context(), key, startDate, endDate, adUnit)
 	if err != nil {
 		return NewInternalError("Failed to get key-value report")
 	}
@@ -128,8 +131,10 @@ func (h *ReportsHandler) GetKeyValueReport(c *fiber.Ctx) error {
 // GetLineItemReport returns stats grouped by line item
 func (h *ReportsHandler) GetLineItemReport(c *fiber.Ctx) error {
 	startDate, endDate := h.parseDateRange(c)
+	adUnit := c.Query("ad_unit", "")
+	creativeSize := c.Query("creative_size", "")
 
-	stats, err := h.store.GetLineItemReport(c.Context(), startDate, endDate)
+	stats, err := h.store.GetLineItemReport(c.Context(), startDate, endDate, adUnit, creativeSize)
 	if err != nil {
 		return NewInternalError("Failed to get line item report")
 	}
@@ -143,6 +148,20 @@ func (h *ReportsHandler) GetLineItemReport(c *fiber.Ctx) error {
 		"start_date": startDate.Format("2006-01-02"),
 		"end_date":   endDate.AddDate(0, 0, -1).Format("2006-01-02"),
 	})
+}
+
+// GetCreativeSizes returns distinct creative sizes
+func (h *ReportsHandler) GetCreativeSizes(c *fiber.Ctx) error {
+	sizes, err := h.store.GetCreativeSizes(c.Context())
+	if err != nil {
+		return NewInternalError("Failed to get creative sizes")
+	}
+
+	if sizes == nil {
+		sizes = []storage.CreativeSize{}
+	}
+
+	return c.JSON(sizes)
 }
 
 // ExportReport exports report data as CSV

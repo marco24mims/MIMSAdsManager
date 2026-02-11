@@ -213,17 +213,19 @@ export async function deleteCreative(id: number): Promise<void> {
 }
 
 // Reports
-export async function getReportSummary(startDate?: string, endDate?: string): Promise<{ summary: ReportSummary }> {
+export async function getReportSummary(startDate?: string, endDate?: string, adUnit?: string): Promise<{ summary: ReportSummary }> {
   const params = new URLSearchParams();
   if (startDate) params.set('start_date', startDate);
   if (endDate) params.set('end_date', endDate);
+  if (adUnit) params.set('ad_unit', adUnit);
   return fetchAPI<{ summary: ReportSummary }>(`/api/reports/summary?${params}`);
 }
 
-export async function getDailyReport(startDate?: string, endDate?: string): Promise<{ daily: DailyStats[] }> {
+export async function getDailyReport(startDate?: string, endDate?: string, adUnit?: string): Promise<{ daily: DailyStats[] }> {
   const params = new URLSearchParams();
   if (startDate) params.set('start_date', startDate);
   if (endDate) params.set('end_date', endDate);
+  if (adUnit) params.set('ad_unit', adUnit);
   return fetchAPI<{ daily: DailyStats[] }>(`/api/reports/daily?${params}`);
 }
 
@@ -260,23 +262,38 @@ interface LineItemStat {
 export async function getKeyValueReport(
   key: string,
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  adUnit?: string
 ): Promise<{ key: string; data: KeyValueStat[] }> {
   const params = new URLSearchParams();
   params.set('key', key);
   if (startDate) params.set('start_date', startDate);
   if (endDate) params.set('end_date', endDate);
+  if (adUnit) params.set('ad_unit', adUnit);
   return fetchAPI(`/api/reports/keyvalue?${params}`);
 }
 
 export async function getLineItemReport(
   startDate?: string,
-  endDate?: string
+  endDate?: string,
+  adUnit?: string,
+  creativeSize?: string
 ): Promise<{ data: LineItemStat[] }> {
   const params = new URLSearchParams();
   if (startDate) params.set('start_date', startDate);
   if (endDate) params.set('end_date', endDate);
+  if (adUnit) params.set('ad_unit', adUnit);
+  if (creativeSize) params.set('creative_size', creativeSize);
   return fetchAPI(`/api/reports/lineitems?${params}`);
+}
+
+interface CreativeSize {
+  width: number;
+  height: number;
+}
+
+export async function getCreativeSizes(): Promise<CreativeSize[]> {
+  return fetchAPI<CreativeSize[]>('/api/reports/creative-sizes');
 }
 
 // Uploads
@@ -375,4 +392,4 @@ export async function deleteTargetingKey(key: string): Promise<void> {
   return fetchAPI<void>(`/api/targeting-keys/${encodeURIComponent(key)}`, { method: 'DELETE' });
 }
 
-export type { Campaign, LineItem, TargetingRule, Creative, ReportSummary, DailyStats, AdUnit, TargetingKey };
+export type { Campaign, LineItem, TargetingRule, Creative, ReportSummary, DailyStats, AdUnit, TargetingKey, CreativeSize };

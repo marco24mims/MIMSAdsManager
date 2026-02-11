@@ -172,6 +172,7 @@ func main() {
 	apiGroup.Get("/reports/daily", reportsHandler.GetDailyReport)
 	apiGroup.Get("/reports/keyvalue", reportsHandler.GetKeyValueReport)
 	apiGroup.Get("/reports/lineitems", reportsHandler.GetLineItemReport)
+	apiGroup.Get("/reports/creative-sizes", reportsHandler.GetCreativeSizes)
 	apiGroup.Get("/reports/export", reportsHandler.ExportReport)
 
 	// Uploads

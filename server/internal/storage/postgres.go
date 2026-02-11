@@ -3,6 +3,9 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -633,17 +636,23 @@ type CampaignReport struct {
 }
 
 // GetReportSummary returns overall stats
-func (s *PostgresStore) GetReportSummary(ctx context.Context, startDate, endDate time.Time) (*ReportSummary, error) {
+func (s *PostgresStore) GetReportSummary(ctx context.Context, startDate, endDate time.Time, adUnit string) (*ReportSummary, error) {
 	var summary ReportSummary
 
-	err := s.pool.QueryRow(ctx, `
+	query := `
 		SELECT
 			COALESCE(SUM(CASE WHEN event_type = 'impression' THEN 1 ELSE 0 END), 0) as impressions,
 			COALESCE(SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END), 0) as clicks,
 			COALESCE(SUM(CASE WHEN event_type = 'viewable' THEN 1 ELSE 0 END), 0) as viewable
 		FROM events
-		WHERE created_at >= $1 AND created_at < $2
-	`, startDate, endDate).Scan(&summary.TotalImpressions, &summary.TotalClicks, &summary.TotalViewable)
+		WHERE created_at >= $1 AND created_at < $2`
+	args := []interface{}{startDate, endDate}
+	if adUnit != "" {
+		query += fmt.Sprintf(" AND ad_unit = $%d", len(args)+1)
+		args = append(args, adUnit)
+	}
+
+	err := s.pool.QueryRow(ctx, query, args...).Scan(&summary.TotalImpressions, &summary.TotalClicks, &summary.TotalViewable)
 	if err != nil {
 		return nil, err
 	}
@@ -657,18 +666,25 @@ func (s *PostgresStore) GetReportSummary(ctx context.Context, startDate, endDate
 }
 
 // GetDailyReport returns daily stats
-func (s *PostgresStore) GetDailyReport(ctx context.Context, startDate, endDate time.Time) ([]DailyStats, error) {
-	rows, err := s.pool.Query(ctx, `
+func (s *PostgresStore) GetDailyReport(ctx context.Context, startDate, endDate time.Time, adUnit string) ([]DailyStats, error) {
+	query := `
 		SELECT
 			DATE(created_at) as date,
 			COALESCE(SUM(CASE WHEN event_type = 'impression' THEN 1 ELSE 0 END), 0) as impressions,
 			COALESCE(SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END), 0) as clicks,
 			COALESCE(SUM(CASE WHEN event_type = 'viewable' THEN 1 ELSE 0 END), 0) as viewable
 		FROM events
-		WHERE created_at >= $1 AND created_at < $2
+		WHERE created_at >= $1 AND created_at < $2`
+	args := []interface{}{startDate, endDate}
+	if adUnit != "" {
+		query += fmt.Sprintf(" AND ad_unit = $%d", len(args)+1)
+		args = append(args, adUnit)
+	}
+	query += `
 		GROUP BY DATE(created_at)
-		ORDER BY date DESC
-	`, startDate, endDate)
+		ORDER BY date DESC`
+
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -744,7 +760,7 @@ type LineItemStats struct {
 }
 
 // GetKeyValueReport returns stats grouped by a specific key
-func (s *PostgresStore) GetKeyValueReport(ctx context.Context, key string, startDate, endDate time.Time) ([]KeyValueStats, error) {
+func (s *PostgresStore) GetKeyValueReport(ctx context.Context, key string, startDate, endDate time.Time, adUnit string) ([]KeyValueStats, error) {
 	var columnName string
 	switch key {
 	case "country":
@@ -753,8 +769,17 @@ func (s *PostgresStore) GetKeyValueReport(ctx context.Context, key string, start
 		columnName = "section"
 	case "platform":
 		columnName = "platform"
+	case "ad_unit":
+		columnName = "ad_unit"
 	default:
 		columnName = "country"
+	}
+
+	args := []interface{}{startDate, endDate}
+	whereExtra := ""
+	if adUnit != "" {
+		whereExtra = fmt.Sprintf(" AND ad_unit = $%d", len(args)+1)
+		args = append(args, adUnit)
 	}
 
 	query := `
@@ -764,12 +789,12 @@ func (s *PostgresStore) GetKeyValueReport(ctx context.Context, key string, start
 			COALESCE(SUM(CASE WHEN event_type = 'click' THEN 1 ELSE 0 END), 0) as clicks,
 			COALESCE(SUM(CASE WHEN event_type = 'viewable' THEN 1 ELSE 0 END), 0) as viewable
 		FROM events
-		WHERE created_at >= $1 AND created_at < $2
+		WHERE created_at >= $1 AND created_at < $2` + whereExtra + `
 		GROUP BY ` + columnName + `
 		ORDER BY impressions DESC
 	`
 
-	rows, err := s.pool.Query(ctx, query, startDate, endDate)
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -791,8 +816,28 @@ func (s *PostgresStore) GetKeyValueReport(ctx context.Context, key string, start
 }
 
 // GetLineItemReport returns stats grouped by line item
-func (s *PostgresStore) GetLineItemReport(ctx context.Context, startDate, endDate time.Time) ([]LineItemStats, error) {
-	rows, err := s.pool.Query(ctx, `
+func (s *PostgresStore) GetLineItemReport(ctx context.Context, startDate, endDate time.Time, adUnit string, creativeSize string) ([]LineItemStats, error) {
+	args := []interface{}{startDate, endDate}
+	eventExtra := ""
+	joinExtra := ""
+
+	if adUnit != "" {
+		eventExtra += fmt.Sprintf(" AND e.ad_unit = $%d", len(args)+1)
+		args = append(args, adUnit)
+	}
+	if creativeSize != "" {
+		parts := strings.SplitN(creativeSize, "x", 2)
+		if len(parts) == 2 {
+			w, errW := strconv.Atoi(parts[0])
+			h, errH := strconv.Atoi(parts[1])
+			if errW == nil && errH == nil {
+				joinExtra = fmt.Sprintf(" JOIN creatives cr ON e.creative_id = cr.id AND cr.width = $%d AND cr.height = $%d", len(args)+1, len(args)+2)
+				args = append(args, w, h)
+			}
+		}
+	}
+
+	query := `
 		SELECT
 			li.id,
 			li.name,
@@ -802,10 +847,12 @@ func (s *PostgresStore) GetLineItemReport(ctx context.Context, startDate, endDat
 			COALESCE(SUM(CASE WHEN e.event_type = 'viewable' THEN 1 ELSE 0 END), 0) as viewable
 		FROM line_items li
 		JOIN campaigns c ON li.campaign_id = c.id
-		LEFT JOIN events e ON e.line_item_id = li.id AND e.created_at >= $1 AND e.created_at < $2
+		LEFT JOIN events e ON e.line_item_id = li.id AND e.created_at >= $1 AND e.created_at < $2` + eventExtra + `
+		` + joinExtra + `
 		GROUP BY li.id, li.name, c.name
-		ORDER BY impressions DESC
-	`, startDate, endDate)
+		ORDER BY impressions DESC`
+
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -1000,4 +1047,31 @@ func (s *PostgresStore) UpdateTargetingKeyValues(ctx context.Context, key string
 func (s *PostgresStore) DeleteTargetingKey(ctx context.Context, key string) error {
 	_, err := s.pool.Exec(ctx, `DELETE FROM targeting_keys WHERE key = $1`, key)
 	return err
+}
+
+// CreativeSize represents a unique creative dimension
+type CreativeSize struct {
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
+// GetCreativeSizes returns distinct creative sizes
+func (s *PostgresStore) GetCreativeSizes(ctx context.Context) ([]CreativeSize, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT DISTINCT width, height FROM creatives WHERE status = 'active' ORDER BY width, height
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sizes []CreativeSize
+	for rows.Next() {
+		var cs CreativeSize
+		if err := rows.Scan(&cs.Width, &cs.Height); err != nil {
+			return nil, err
+		}
+		sizes = append(sizes, cs)
+	}
+	return sizes, nil
 }

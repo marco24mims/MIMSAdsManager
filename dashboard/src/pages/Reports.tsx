@@ -17,8 +17,12 @@ import {
   getDailyReport,
   getKeyValueReport,
   getLineItemReport,
+  getAdUnits,
+  getCreativeSizes,
   type ReportSummary,
   type DailyStats,
+  type AdUnit,
+  type CreativeSize,
 } from '../api';
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
@@ -55,19 +59,37 @@ export default function Reports() {
     start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     end: new Date().toISOString().split('T')[0],
   });
+  const [adUnits, setAdUnits] = useState<AdUnit[]>([]);
+  const [selectedAdUnit, setSelectedAdUnit] = useState('');
+  const [creativeSizes, setCreativeSizes] = useState<CreativeSize[]>([]);
+  const [selectedCreativeSize, setSelectedCreativeSize] = useState('');
+
+  useEffect(() => {
+    async function loadFilters() {
+      try {
+        const [units, sizes] = await Promise.all([getAdUnits(), getCreativeSizes()]);
+        setAdUnits(units || []);
+        setCreativeSizes(sizes || []);
+      } catch {
+        // filters are non-critical
+      }
+    }
+    loadFilters();
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, [dateRange, selectedKey]);
+  }, [dateRange, selectedKey, selectedAdUnit, selectedCreativeSize]);
 
   async function loadData() {
     try {
       setLoading(true);
+      const adUnitParam = selectedAdUnit || undefined;
       const [summaryData, dailyData, kvData, liData] = await Promise.all([
-        getReportSummary(dateRange.start, dateRange.end),
-        getDailyReport(dateRange.start, dateRange.end),
-        getKeyValueReport(selectedKey, dateRange.start, dateRange.end),
-        getLineItemReport(dateRange.start, dateRange.end),
+        getReportSummary(dateRange.start, dateRange.end, adUnitParam),
+        getDailyReport(dateRange.start, dateRange.end, adUnitParam),
+        getKeyValueReport(selectedKey, dateRange.start, dateRange.end, adUnitParam),
+        getLineItemReport(dateRange.start, dateRange.end, adUnitParam, selectedCreativeSize || undefined),
       ]);
       setSummary(summaryData.summary);
       setDailyStats(dailyData.daily || []);
@@ -122,6 +144,21 @@ export default function Reports() {
               onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
               className="border border-gray-300 rounded-md px-3 py-1.5 text-sm"
             />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600">Ad Unit:</label>
+            <select
+              value={selectedAdUnit}
+              onChange={(e) => setSelectedAdUnit(e.target.value)}
+              className="border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+            >
+              <option value="">All Ad Units</option>
+              {adUnits.map((u) => (
+                <option key={u.id} value={u.code}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="relative">
             <button
@@ -282,6 +319,7 @@ export default function Reports() {
               <option value="country">Country</option>
               <option value="section">Section</option>
               <option value="platform">Platform</option>
+              <option value="ad_unit">Ad Unit</option>
             </select>
           </div>
 
@@ -371,6 +409,22 @@ export default function Reports() {
       )}
 
       {activeTab === 'lineitems' && (
+        <>
+        <div className="mb-4">
+          <label className="text-sm font-medium text-gray-700 mr-2">Creative Size:</label>
+          <select
+            value={selectedCreativeSize}
+            onChange={(e) => setSelectedCreativeSize(e.target.value)}
+            className="border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+          >
+            <option value="">All Sizes</option>
+            {creativeSizes.map((s) => (
+              <option key={`${s.width}x${s.height}`} value={`${s.width}x${s.height}`}>
+                {s.width}x{s.height}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="bg-white shadow rounded-lg overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -423,6 +477,7 @@ export default function Reports() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

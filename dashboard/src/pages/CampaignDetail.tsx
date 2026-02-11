@@ -17,7 +17,7 @@ export default function CampaignDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [newLineItem, setNewLineItem] = useState({ name: '', priority: 5, frequency_cap: 0 });
+  const [newLineItem, setNewLineItem] = useState({ name: '', priority: 5, sov_percentage: 0, frequency_cap: 0 });
   const [creating, setCreating] = useState(false);
 
   // Edit campaign modal
@@ -84,10 +84,11 @@ export default function CampaignDetail() {
         campaign_id: Number(id),
         name: newLineItem.name,
         priority: newLineItem.priority,
+        sov_percentage: newLineItem.sov_percentage,
         frequency_cap: newLineItem.frequency_cap,
         status: 'active',
       });
-      setNewLineItem({ name: '', priority: 5, frequency_cap: 0 });
+      setNewLineItem({ name: '', priority: 5, sov_percentage: 0, frequency_cap: 0 });
       setShowModal(false);
       loadData();
     } catch (err) {
@@ -219,6 +220,7 @@ export default function CampaignDetail() {
                         {lineItem.status}
                       </span>
                       <span>Priority: {lineItem.priority}</span>
+                      <span>SOV: {lineItem.sov_percentage > 0 ? `${lineItem.sov_percentage}%` : 'None'}</span>
                       <span>
                         Freq Cap: {lineItem.frequency_cap || 'None'}
                         {lineItem.frequency_cap > 0 && `/${lineItem.frequency_cap_period}`}
@@ -264,6 +266,20 @@ export default function CampaignDetail() {
                   onChange={(e) => setNewLineItem({ ...newLineItem, priority: Number(e.target.value) })}
                   className="w-full border border-gray-300 rounded-md px-3 py-2"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Share of Voice % (0 = use weight)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={newLineItem.sov_percentage}
+                  onChange={(e) => setNewLineItem({ ...newLineItem, sov_percentage: Number(e.target.value) })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Percentage of ad requests this line item should fill. Set to 0 for weight-based rotation.
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

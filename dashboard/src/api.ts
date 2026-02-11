@@ -142,6 +142,7 @@ export async function createLineItem(data: {
   campaign_id: number;
   name: string;
   priority?: number;
+  sov_percentage?: number;
   frequency_cap?: number;
   status?: string;
 }): Promise<LineItem> {
